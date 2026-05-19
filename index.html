@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -16,38 +15,38 @@
     </div>
     <div class="top-status">
       CONNECTION: SECURE ●<br>
-      TIME: <span id="clock"></span><br>
-      DATE: <span id="date"></span>
+      TIME: <span id="clock">Loading...</span><br>
+      DATE: <span id="date">Loading...</span>
     </div>
   </header>
 
   <nav>
-    <button class="active" onclick="showTab('dashboard')">🏠<br>Dashboard</button>
-    <button onclick="showTab('members')">👥<br>Members</button>
-    <button onclick="showTab('war')">⚔️<br>War</button>
-    <button onclick="showTab('chain')">🔗<br>Chain</button>
-    <button onclick="showTab('territory')">🚩<br>Territory</button>
-    <button onclick="showTab('hospital')">🏥<br>Hospital</button>
-    <button onclick="showTab('settings')">⚙️<br>Settings</button>
+    <button class="active" onclick="showTab('dashboard', this)">🏠<br>Dashboard</button>
+    <button onclick="showTab('members', this)">👥<br>Members</button>
+    <button onclick="showTab('war', this)">⚔️<br>War</button>
+    <button onclick="showTab('chain', this)">🔗<br>Chain</button>
+    <button onclick="showTab('territory', this)">🚩<br>Territory</button>
+    <button onclick="showTab('hospital', this)">🏥<br>Hospital</button>
+    <button onclick="showTab('settings', this)">⚙️<br>Settings</button>
   </nav>
 
   <main>
     <aside>
       <div class="panel">
         <h2>FACTION OVERVIEW</h2>
-        <p>FACTION: EMU HQ</p>
-        <p>RANK: #8</p>
-        <p>RESPECT: 45,231,522,112</p>
-        <p>MEMBERS: 100 / 100</p>
-        <p>POWER: VERY STRONG</p>
-        <p>WAR STATUS: IN WAR</p>
-        <p>CHAIN: 123</p>
+        <p>FACTION: <span id="factionName">Loading...</span></p>
+        <p>RANK: <span id="factionRank">Loading...</span></p>
+        <p>RESPECT: <span id="factionRespect">Loading...</span></p>
+        <p>MEMBERS: <span id="factionMembers">Loading...</span></p>
+        <p>POWER: <span id="factionPower">Loading...</span></p>
+        <p>WAR STATUS: <span id="warStatus">Loading...</span></p>
+        <p>CHAIN: <span id="chainValue">Loading...</span></p>
       </div>
 
       <div class="panel">
         <h2>WAR TIMER</h2>
-        <div class="timer">05:12:38:47</div>
-        <p>DAYS HRS MINS SECS</p>
+        <div class="timer" id="warTimer">Loading...</div>
+        <p id="warTimerLabel">DAYS HRS MINS SECS</p>
       </div>
     </aside>
 
@@ -56,52 +55,56 @@
       <div id="dashboard" class="tab-page active-page">
         <div class="panel profile">
           <h2>DASHBOARD</h2>
-          <img class="pfp" src="https://www.torn.com/images/profile/3149820.jpg">
-          <h3>Pacca</h3>
-          <p>[3149820]</p>
-          <span>Supreme Egotist</span>
+
+          <img id="playerPfp" class="pfp" src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png">
+
+          <h3 id="playerName">Loading...</h3>
+          <p id="playerId">[Loading]</p>
+          <span id="playerRank">Loading...</span>
 
           <div class="stat-grid">
-            <div class="stat"><small>LEVEL</small><strong>56</strong></div>
-            <div class="stat"><small>AGE</small><strong>2 years</strong></div>
-            <div class="stat"><small>LVL/DAY</small><strong>0.061</strong></div>
-            <div class="stat"><small>FRENEMIES</small><strong>+33 💀6</strong></div>
-            <div class="stat"><small>HONOR</small><strong>740</strong></div>
-            <div class="stat"><small>AWARDS</small><strong>293</strong></div>
+            <div class="stat"><small>LEVEL</small><strong id="playerLevel">-</strong></div>
+            <div class="stat"><small>STATUS</small><strong id="playerStatus">-</strong></div>
+            <div class="stat"><small>ENERGY</small><strong id="energyValue">-</strong></div>
+            <div class="stat"><small>CHAIN</small><strong id="dashChain">-</strong></div>
+            <div class="stat"><small>FACTION</small><strong id="dashFaction">-</strong></div>
+            <div class="stat"><small>RESPECT</small><strong id="dashRespect">-</strong></div>
           </div>
         </div>
       </div>
 
       <div id="members" class="tab-page panel">
         <h2>MEMBERS</h2>
-        <p>Member table will go here.</p>
+        <div id="memberList">Loading...</div>
       </div>
 
       <div id="war" class="tab-page panel">
         <h2>WAR TERMINAL</h2>
-        <p>Targets, hospital timers and calls will go here.</p>
+        <p>WAR STATUS: <span id="warStatus2">Loading...</span></p>
+        <p>WAR START: <span id="warStart">Loading...</span></p>
+        <p>TIMER: <span id="warTimer2">Loading...</span></p>
       </div>
 
       <div id="chain" class="tab-page panel">
         <h2>CHAIN TRACKER</h2>
-        <p>Chain info will go here.</p>
+        <p>CURRENT CHAIN: <span id="chainValue2">Loading...</span></p>
       </div>
 
       <div id="territory" class="tab-page panel">
         <h2>TERRITORY</h2>
-        <p>Wall slots, tile info and assault notes will go here.</p>
+        <p>STATUS: <span id="territoryAlert2">Loading...</span></p>
       </div>
 
       <div id="hospital" class="tab-page panel">
         <h2>HOSPITAL</h2>
-        <p>Hospital timers will go here.</p>
+        <p>MEMBERS IN HOSPITAL: <span id="hospitalAlert2">Loading...</span></p>
       </div>
 
       <div id="settings" class="tab-page panel">
         <h2>SETTINGS</h2>
         <input id="apiKey" placeholder="Enter Torn API Key">
         <button onclick="saveKey()">Save API Key</button>
-        <p id="status"></p>
+        <p id="status">No API key loaded.</p>
       </div>
 
     </section>
@@ -109,18 +112,15 @@
     <aside>
       <div class="panel">
         <h2>ALERTS</h2>
-        <p>[!] HOSPITAL: 7</p>
-        <p>[!] ENERGY LOW: 12</p>
-        <p>[!] CHAIN AT RISK</p>
-        <p>[!] TERRITORY UNDER ATTACK</p>
+        <p>[!] HOSPITAL: <span id="hospitalAlert">0</span></p>
+        <p>[!] YOUR ENERGY: <span id="energyAlert">Loading...</span></p>
+        <p>[!] CHAIN: <span id="chainAlert">Loading...</span></p>
+        <p>[!] TERRITORY: <span id="territoryAlert">Loading...</span></p>
       </div>
 
       <div class="panel">
         <h2>ONLINE NOW</h2>
-        <p>PACCA - Online</p>
-        <p>SHOK - Online</p>
-        <p>KYLEE - Online</p>
-        <p>BAZ - Online</p>
+        <div id="onlineMembers">Loading...</div>
       </div>
     </aside>
   </main>
