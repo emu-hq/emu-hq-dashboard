@@ -11,7 +11,6 @@ body{
   overflow-x:auto;
 }
 
-/* scanlines */
 body::before{
   content:"";
   position:fixed;
@@ -32,8 +31,6 @@ body::before{
   margin:auto;
   padding:14px;
 }
-
-/* TOPBAR */
 
 .topbar{
   border:1px solid #00ff66;
@@ -61,15 +58,11 @@ body::before{
   text-align:right;
 }
 
-/* MAIN */
-
 .main-layout{
   display:grid;
   grid-template-columns:320px 1fr 320px;
   gap:16px;
 }
-
-/* PANELS */
 
 .panel{
   border:1px solid #00ff66;
@@ -89,8 +82,6 @@ body::before{
   line-height:1.7;
 }
 
-/* QUICK LINKS */
-
 .links{
   display:flex;
   flex-direction:column;
@@ -106,8 +97,6 @@ body::before{
   font-size:16px;
   cursor:pointer;
 }
-
-/* CENTER */
 
 .center-title{
   text-align:center;
@@ -162,7 +151,27 @@ body::before{
   margin:14px 0 28px;
 }
 
-/* STATS */
+.user-bars{
+  display:flex;
+  justify-content:center;
+  gap:14px;
+  margin:14px 0 20px;
+  flex-wrap:wrap;
+}
+
+.bar-box{
+  border:1px solid #00ff66;
+  background:rgba(0,20,0,0.45);
+  padding:10px 16px;
+  min-width:140px;
+  text-align:center;
+}
+
+.bar-box strong{
+  display:block;
+  margin-top:6px;
+  font-size:24px;
+}
 
 .stats-grid{
   display:grid;
@@ -186,8 +195,6 @@ body::before{
   font-size:34px;
 }
 
-/* TIMER */
-
 .timer-box{
   text-align:center;
 }
@@ -201,16 +208,12 @@ body::before{
   font-size:14px;
 }
 
-/* STATUS */
-
 .connection-status{
   border:1px solid #00ff66;
   padding:18px;
   margin-top:28px;
   font-size:28px;
 }
-
-/* FOOTER */
 
 .footer{
   margin-top:18px;
@@ -220,8 +223,6 @@ body::before{
   justify-content:space-between;
   background:rgba(0,20,0,0.45);
 }
-
-/* SETTINGS */
 
 input{
   width:100%;
@@ -242,8 +243,6 @@ input{
   cursor:pointer;
 }
 
-/* PAGES */
-
 .page{
   display:none;
 }
@@ -252,10 +251,7 @@ input{
   display:block;
 }
 
-/* MOBILE */
-
 @media(max-width:1600px){
-
   .terminal{
     transform:scale(.72);
     transform-origin:top left;
@@ -265,5 +261,4 @@ input{
   body{
     min-width:1080px;
   }
-
 }
