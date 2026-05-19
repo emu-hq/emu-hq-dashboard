@@ -1,223 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
 <div class="app">
 
-  <div class="topbar">
-    <div class="logo">
-      EMU HQ TERMINAL v1.1
+  <header class="header">
+
+    <div>
+      <h1>EMU HQ TERMINAL v2.0</h1>
+      <p>> EMULATED MILITARY INTELLIGENCE</p>
     </div>
 
-    <div class="top-status">
-      CONNECTION: SECURE ●<br>
-      TIME: <span id="clock">Loading...</span><br>
-      DATE: <span id="date">Loading...</span>
+    <div class="clock-box">
+      <div>CONNECTION: SECURE ●</div>
+      <div id="clock">--:--:--</div>
+      <div id="date">--/--/----</div>
     </div>
-  </div>
 
-  <div class="terminal-line">
-    >> EMULATED MILITARY INTELLIGENCE
-  </div>
+  </header>
 
-  <div class="tabs">
+  <nav class="tabs">
 
     <button class="tab active"
-      onclick="showTab('dashboard', this)">
+      onclick="showPage('dashboard', this)">
       🏠<br>Dashboard
     </button>
 
     <button class="tab"
-      onclick="showTab('members', this)">
-      👥<br>Members
+      onclick="showPage('faction', this)">
+      👥<br>Faction
     </button>
 
     <button class="tab"
-      onclick="showTab('war', this)">
-      ⚔️<br>War
-    </button>
-
-    <button class="tab"
-      onclick="showTab('chain', this)">
-      🔗<br>Chain
-    </button>
-
-    <button class="tab"
-      onclick="showTab('territory', this)">
-      🚩<br>Territory
-    </button>
-
-    <button class="tab"
-      onclick="showTab('hospital', this)">
-      🏥<br>Hospital
-    </button>
-
-    <button class="tab"
-      onclick="showTab('settings', this)">
+      onclick="showPage('settings', this)">
       ⚙️<br>Settings
     </button>
 
-  </div>
+  </nav>
 
-  <div class="main-layout">
+  <!-- DASHBOARD -->
+  <section
+    id="dashboard"
+    class="page active-page">
 
-    <!-- LEFT -->
-    <div class="left-column">
+    <div class="card profile-card">
 
-      <div class="card">
-        <h2>FACTION OVERVIEW</h2>
+      <img
+        id="playerPfp"
+        class="pfp"
+        src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png"
+      >
 
-        <p>FACTION: <span id="factionName">Loading...</span></p>
-        <p>RANK: <span id="factionRank">Loading...</span></p>
-        <p>RESPECT: <span id="factionRespect">Loading...</span></p>
-        <p>MEMBERS: <span id="factionMembers">Loading...</span></p>
-        <p>POWER: <span id="factionPower">Loading...</span></p>
-        <p>WAR STATUS: <span id="warStatus">Loading...</span></p>
-        <p>CHAIN: <span id="chainValue">Loading...</span></p>
-      </div>
+      <h2 id="playerName">
+        Loading...
+      </h2>
 
-      <div class="card">
-        <h2>WAR TIMER</h2>
+      <p id="playerId">
+        [Loading]
+      </p>
 
-        <div class="war-timer"
-          id="warTimer">
-          Loading...
-        </div>
-
-        <p>DAYS HRS MINS SECS</p>
-      </div>
-
-    </div>
-
-    <!-- CENTER -->
-    <div class="center-column">
-
-      <div id="dashboard"
-        class="page active-page">
-
-        <div class="card profile-card">
-
-          <h2>DASHBOARD</h2>
-
-          <img
-            id="playerPfp"
-            class="pfp"
-            src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png"
-          >
-
-          <h1 id="playerName">
-            Loading...
-          </h1>
-
-          <p id="playerId">
-            [Loading]
-          </p>
-
-          <span class="rank-tag"
-            id="playerRank">
-            Loading...
-          </span>
-
-          <div class="stats-grid">
-
-            <div class="stat">
-              <small>LEVEL</small>
-              <strong id="playerLevel">-</strong>
-            </div>
-
-            <div class="stat">
-              <small>AGE</small>
-              <strong id="playerAge">-</strong>
-              <p id="ageDays"></p>
-            </div>
-
-            <div class="stat">
-              <small>LVL/DAY</small>
-              <strong id="levelDay">-</strong>
-            </div>
-
-            <div class="stat">
-              <small>FRENEMIES</small>
-              <strong id="frenemiesValue">+0 💀0</strong>
-            </div>
-
-            <div class="stat">
-              <small>HONOR</small>
-              <strong id="honorValue">-</strong>
-            </div>
-
-            <div class="stat">
-              <small>AWARDS</small>
-              <strong id="awardsValue">-</strong>
-            </div>
-
-            <div class="stat">
-              <small>KARMA</small>
-              <strong id="karmaValue">-</strong>
-            </div>
-
-            <div class="stat">
-              <small>FORUM</small>
-              <strong id="forumValue">-</strong>
-              <p>posts</p>
-            </div>
-
-          </div>
-
-        </div>
-
+      <div
+        class="rank-tag"
+        id="playerRank">
+        Loading...
       </div>
 
     </div>
 
-    <!-- RIGHT -->
-    <div class="right-column">
+    <div class="stats-grid">
 
-      <div class="card">
-
-        <h2>ALERTS</h2>
-
-        <p>[!] HOSPITAL:
-          <span id="hospitalAlert">0</span>
-        </p>
-
-        <p>[!] YOUR ENERGY:
-          <span id="energyAlert">Loading...</span>
-        </p>
-
-        <p>[!] CHAIN:
-          <span id="chainAlert">Loading...</span>
-        </p>
-
-        <p>[!] TERRITORY:
-          <span id="territoryAlert">Loading...</span>
-        </p>
-
+      <div class="stat">
+        <small>LEVEL</small>
+        <strong id="playerLevel">-</strong>
       </div>
 
-      <div class="card">
+      <div class="stat">
+        <small>AGE</small>
+        <strong id="playerAge">-</strong>
+      </div>
 
-        <h2>ONLINE NOW</h2>
+      <div class="stat">
+        <small>LVL/DAY</small>
+        <strong id="levelDay">-</strong>
+      </div>
 
-        <div id="onlineMembers">
-          Loading...
-        </div>
+      <div class="stat">
+        <small>FRENEMIES</small>
+        <strong id="frenemiesValue">+0 💀0</strong>
+      </div>
 
+      <div class="stat">
+        <small>HONORS</small>
+        <strong id="honorValue">-</strong>
+      </div>
+
+      <div class="stat">
+        <small>AWARDS</small>
+        <strong id="awardsValue">-</strong>
+      </div>
+
+      <div class="stat">
+        <small>KARMA</small>
+        <strong id="karmaValue">-</strong>
+      </div>
+
+      <div class="stat">
+        <small>FORUM</small>
+        <strong id="forumValue">-</strong>
       </div>
 
     </div>
 
-  </div>
+  </section>
 
-  <!-- SETTINGS PAGE -->
-  <div id="settings"
+  <!-- FACTION -->
+  <section
+    id="faction"
+    class="page">
+
+    <div class="card">
+
+      <h2>FACTION OVERVIEW</h2>
+
+      <p>FACTION: <span id="factionName">Loading...</span></p>
+      <p>RESPECT: <span id="factionRespect">Loading...</span></p>
+      <p>MEMBERS: <span id="factionMembers">Loading...</span></p>
+      <p>CHAIN: <span id="chainValue">Loading...</span></p>
+
+    </div>
+
+    <div class="card">
+
+      <h2>ONLINE NOW</h2>
+
+      <div id="onlineMembers">
+        Loading...
+      </div>
+
+    </div>
+
+  </section>
+
+  <!-- SETTINGS -->
+  <section
+    id="settings"
     class="page">
 
     <div class="card">
@@ -239,15 +173,11 @@
 
     </div>
 
-  </div>
-
-  <div class="footer">
-    > SYSTEM ONLINE AND OPERATIONAL
-  </div>
+  </section>
 
 </div>
 
-<script src="./app.js"></script>
+<script src="app.js"></script>
 
 </body>
 </html>
