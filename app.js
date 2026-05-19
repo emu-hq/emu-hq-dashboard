@@ -910,4 +910,3 @@ function init() {
 }
 
 init();
-init();
