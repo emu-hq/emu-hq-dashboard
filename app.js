@@ -11,33 +11,20 @@ function showPage(pageId, button) {
     tab.classList.remove("active");
   });
 
-  const page = document.getElementById(pageId);
-
-  if (page) {
-    page.classList.add("active-page");
-  }
-
-  if (button) {
-    button.classList.add("active");
-  }
+  document.getElementById(pageId)?.classList.add("active-page");
+  button?.classList.add("active");
 }
 
 function saveKey() {
   apiKey = document.getElementById("apiKey").value.trim();
-
   localStorage.setItem("tornApiKey", apiKey);
-
   setText("status", "Loading data...");
-
   loadAllData();
 }
 
 function setText(id, value) {
   const el = document.getElementById(id);
-
-  if (el) {
-    el.innerText = value;
-  }
+  if (el) el.innerText = value;
 }
 
 async function getData(url) {
@@ -58,21 +45,19 @@ async function loadAllData() {
   }
 
   try {
-    const user = await getData(
-      `${API}/user?selections=basic,bars&key=${apiKey}`
-    );
-
-    const faction = await getData(
-      `${API}/faction?selections=basic,members,chain&key=${apiKey}`
-    );
-
+    const user = await getData(`${API}/user?selections=basic,bars&key=${apiKey}`);
     loadUser(user);
-    loadFaction(faction);
+    setText("status", "Player loaded.");
+  } catch (err) {
+    setText("status", "PLAYER ERROR: " + err.message);
+  }
 
+  try {
+    const faction = await getData(`${API}/faction?selections=basic,members,chain&key=${apiKey}`);
+    loadFaction(faction);
     setText("status", "Connected successfully.");
   } catch (err) {
-    console.error(err);
-    setText("status", "ERROR: " + err.message);
+    setText("status", "FACTION ERROR: " + err.message);
   }
 }
 
@@ -85,37 +70,22 @@ function loadUser(data) {
   setText("playerLevel", user.level || "-");
 
   const age = user.age || 0;
+  setText("playerAge", age ? `${Math.floor(age / 365)} years` : "-");
+  setText("levelDay", age && user.level ? (user.level / age).toFixed(3) : "-");
 
-  setText(
-    "playerAge",
-    age ? `${Math.floor(age / 365)} years` : "-"
-  );
-
-  setText(
-    "levelDay",
-    age && user.level ? (user.level / age).toFixed(3) : "-"
-  );
-
-  setText(
-    "frenemiesValue",
-    `+${user.friends || 0} 💀${user.enemies || 0}`
-  );
-
+  setText("frenemiesValue", `+${user.friends || 0} 💀${user.enemies || 0}`);
   setText("honorValue", user.honors_awarded || "-");
   setText("awardsValue", user.awards || "-");
   setText("karmaValue", user.karma || "-");
   setText("forumValue", user.forum_posts || "-");
 
   const pfp = document.getElementById("playerPfp");
+  const id = user.id || user.player_id;
 
-  if (pfp) {
-    const playerId = user.id || user.player_id;
-
-    pfp.src = `https://www.torn.com/images/profile/${playerId}.jpg`;
-
+  if (pfp && id) {
+    pfp.src = `https://www.torn.com/images/profile/${id}.jpg`;
     pfp.onerror = () => {
-      pfp.src =
-        "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
+      pfp.src = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
     };
   }
 }
@@ -126,20 +96,10 @@ function loadFaction(data) {
   const chainObj = data.chain || faction.chain || {};
 
   setText("factionName", faction.name || "-");
-
-  setText(
-    "factionRespect",
-    Number(faction.respect || 0).toLocaleString()
-  );
-
+  setText("factionRespect", Number(faction.respect || 0).toLocaleString());
   setText("factionMembers", Object.keys(membersObj).length);
 
-  const chain =
-    chainObj.current ||
-    chainObj.chain ||
-    chainObj.counter ||
-    0;
-
+  const chain = chainObj.current || chainObj.chain || chainObj.counter || 0;
   setText("chainValue", chain);
 
   const online = Object.values(membersObj).filter(member =>
@@ -152,24 +112,19 @@ function loadFaction(data) {
 
   if (onlineBox) {
     onlineBox.innerHTML = online.length
-      ? online
-          .map(member => `<p>${member.name} - Online</p>`)
-          .join("")
+      ? online.map(member => `<p>${member.name} - Online</p>`).join("")
       : "<p>No members online.</p>";
   }
 }
 
 function updateClock() {
   const now = new Date();
-
   setText("clock", now.toLocaleTimeString());
   setText("date", now.toLocaleDateString());
 }
 
 updateClock();
-
 setInterval(updateClock, 1000);
 
 loadAllData();
-
 setInterval(loadAllData, 30000);
