@@ -1,245 +1,114 @@
 const API = "https://api.torn.com/v2";
-
-let apiKey =
-  localStorage.getItem("tornApiKey") || "";
+let apiKey = localStorage.getItem("tornApiKey") || "";
 
 function showTab(tabName, button) {
+  document.querySelectorAll(".tab-page, .page").forEach(p => p.classList.remove("active-page"));
+  document.querySelectorAll("nav button, .tab").forEach(t => t.classList.remove("active"));
 
-  document.querySelectorAll(".page")
-    .forEach(page => {
-      page.classList.remove("active-page");
-    });
-
-  document.querySelectorAll(".tab")
-    .forEach(tab => {
-      tab.classList.remove("active");
-    });
-
-  document
-    .getElementById(tabName)
-    .classList.add("active-page");
-
-  button.classList.add("active");
+  document.getElementById(tabName).classList.add("active-page");
+  if (button) button.classList.add("active");
 }
 
 function saveKey() {
-
-  apiKey =
-    document.getElementById("apiKey")
-    .value
-    .trim();
-
-  localStorage.setItem(
-    "tornApiKey",
-    apiKey
-  );
-
-  setText(
-    "status",
-    "API key saved."
-  );
-
+  apiKey = document.getElementById("apiKey").value.trim();
+  localStorage.setItem("tornApiKey", apiKey);
+  setText("status", "API key saved. Loading...");
   loadAllData();
 }
 
 function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.innerText = value;
+}
 
-  const el =
-    document.getElementById(id);
+async function getJson(url) {
+  const res = await fetch(url);
+  const data = await res.json();
 
-  if (el) {
-    el.innerText = value;
+  if (data.error) {
+    throw new Error(data.error.error || data.error.message || "API error");
   }
+
+  return data;
 }
 
 async function loadAllData() {
-
   if (!apiKey) {
-
-    setText(
-      "status",
-      "Enter API key in settings."
-    );
-
+    setText("status", "Enter API key in settings.");
     return;
   }
 
   try {
+    const userData = await getJson(`${API}/user?selections=profile,bars&key=${apiKey}`);
+    const factionData = await getJson(`${API}/faction?selections=basic,members,chain&key=${apiKey}`);
 
-    const user =
-      await fetch(
-        `${API}/user?selections=profile,bars&key=${apiKey}`
-      ).then(r => r.json());
+    console.log("USER", userData);
+    console.log("FACTION", factionData);
 
-    const faction =
-      await fetch(
-        `${API}/faction?selections=basic,members,chain&key=${apiKey}`
-      ).then(r => r.json());
+    const user = userData.profile || userData;
+    const bars = userData.bars || userData;
 
-    console.log("USER:", user);
-    console.log("FACTION:", faction);
+    setText("playerName", user.name || "Unknown");
+    setText("playerId", `[${user.id || user.player_id || "?"}]`);
+    setText("playerLevel", user.level || "-");
+    setText("playerStatus", user.status?.description || user.status?.state || "-");
+    setText("playerRank", user.rank || "-");
 
-    if (user.error) {
-      throw new Error(user.error.error);
+    const energy = bars.energy || user.energy;
+    setText("energyValue", energy ? `${energy.current}/${energy.maximum}` : "-");
+
+    if (user.image || user.profile_image) {
+      document.getElementById("playerPfp").src = user.image || user.profile_image;
     }
 
-    if (faction.error) {
-      throw new Error(faction.error.error);
+    const faction = factionData.basic || factionData;
+    const membersObj = factionData.members || faction.members || {};
+    const chainObj = factionData.chain || faction.chain || {};
+
+    setText("factionName", faction.name || "-");
+    setText("factionRespect", Number(faction.respect || 0).toLocaleString());
+
+    const chain = chainObj.current || chainObj.chain || chainObj.counter || 0;
+    setText("chainValue", chain);
+    setText("chainTracker", chain);
+
+    const members = Object.values(membersObj);
+
+    const online = members.filter(m =>
+      String(m.last_action?.status || "").toLowerCase().includes("online")
+    );
+
+    const hospital = members.filter(m =>
+      String(m.status?.description || m.status?.state || "").toLowerCase().includes("hospital")
+    );
+
+    setText("hospitalCount", hospital.length);
+
+    const onlineBox = document.getElementById("onlineMembers");
+    if (onlineBox) {
+      onlineBox.innerHTML = online.length
+        ? online.map(m => `<p>${m.name} - Online</p>`).join("")
+        : "<p>No members online.</p>";
     }
 
-    // USER
-    setText(
-      "playerName",
-      user.name || "Unknown"
-    );
-
-    setText(
-      "playerId",
-      `[${user.player_id || "?"}]`
-    );
-
-    setText(
-      "playerLevel",
-      user.level || "-"
-    );
-
-    setText(
-      "playerStatus",
-      user.status?.description || "-"
-    );
-
-    setText(
-      "playerRank",
-      user.rank || "-"
-    );
-
-    setText(
-      "energyValue",
-      `${user.energy?.current || 0}/${user.energy?.maximum || 0}`
-    );
-
-    // PROFILE IMAGE
-    if (user.profile_image) {
-
-      const img =
-        document.getElementById("playerPfp");
-
-      if (img) {
-        img.src = user.profile_image;
-      }
-    }
-
-    // FACTION
-    setText(
-      "factionName",
-      faction.name || "-"
-    );
-
-    setText(
-      "factionRespect",
-      Number(
-        faction.respect || 0
-      ).toLocaleString()
-    );
-
-    const chain =
-      faction.chain?.current ||
-      faction.chain ||
-      0;
-
-    setText(
-      "chainValue",
-      chain
-    );
-
-    setText(
-      "chainTracker",
-      chain
-    );
-
-    // MEMBERS
-    const members =
-      Object.values(
-        faction.members || {}
-      );
-
-    // ONLINE
-    const online =
-      members.filter(member => {
-
-        const status =
-          String(
-            member.last_action?.status || ""
-          ).toLowerCase();
-
-        return status.includes("online");
-
-      });
-
-    // HOSPITAL
-    const hospital =
-      members.filter(member => {
-
-        const desc =
-          String(
-            member.status?.description || ""
-          ).toLowerCase();
-
-        return desc.includes("hospital");
-
-      });
-
-    // ONLINE BOX
-    const onlineBox =
-      document.getElementById(
-        "onlineMembers"
-      );
-
-    onlineBox.innerHTML =
-      online.length
-      ? online.map(member =>
-          `<p>${member.name} - Online</p>`
-        ).join("")
-      : "<p>No members online.</p>";
-
-    // HOSPITAL COUNT
-    setText(
-      "hospitalCount",
-      hospital.length
-    );
-
-    // TERRITORY
-    setText(
-      "territoryStatus",
-      "No assault detected"
-    );
-
-    // WAR
-    setText(
-      "warTimer",
-      "No active war"
-    );
-
-    // SUCCESS
-    setText(
-      "status",
-      "Live data loaded."
-    );
+    setText("warTimer", "No active war");
+    setText("territoryStatus", "No assault detected");
+    setText("status", "Live data loaded.");
 
   } catch (err) {
-
     console.error(err);
-
-    setText(
-      "status",
-      "ERROR: " + err.message
-    );
+    setText("status", "ERROR: " + err.message);
   }
 }
 
-loadAllData();
+function updateClock() {
+  const now = new Date();
+  setText("clock", now.toLocaleTimeString());
+  setText("date", now.toLocaleDateString());
+}
 
-setInterval(
-  loadAllData,
-  30000
-);
+updateClock();
+setInterval(updateClock, 1000);
+
+loadAllData();
+setInterval(loadAllData, 30000);
