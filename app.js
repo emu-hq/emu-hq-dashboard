@@ -1,4 +1,4 @@
-const API = "https://api.torn.com";
+alert("JS WORKING");const API = "https://api.torn.com";
 let apiKey = localStorage.getItem("tornApiKey") || "";
 let warInterval = null;
 
