@@ -319,6 +319,12 @@ function renderFactionMembers(members) {
   renderOwnHospital(members);
 }
 
+function formatRankPosition(faction) {
+  const rank = faction.rank || faction.ranked_wars || {};
+  const position = rank.position ?? rank.rank ?? faction.position ?? faction.rank_position;
+  return position ? `#${formatNumber(position)}` : "-";
+}
+
 function formatFactionRank(faction) {
   const rank = faction.rank || {};
 
@@ -773,6 +779,7 @@ function renderTornStats(data, factionMembers) {
   const totals = roster
     .map(member => battleStatsTotal(member))
     .filter(total => total > 0);
+  const factionMemberCount = factionMembers.length || roster.length;
 
   if (!totals.length) {
     setText("factionBattleStats", "No TornStats data");
