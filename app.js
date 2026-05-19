@@ -432,4 +432,427 @@ function hospitalRow(member) {
 function memberRow(member, label, className) {
   const action = getLastAction(member);
   const status = getMemberStatus(member);
-  const sub
+  const subline = action.relative || status.description || status.state || "";
+
+  return `
+    <div class="intel-row">
+      <span>
+        ${memberLink(member)}
+        ${subline ? `<small>${escapeHtml(subline)}</small>` : ""}
+      </span>
+      <span class="badge ${className || ""}">${escapeHtml(label)}</span>
+    </div>
+  `;
+}
+
+function memberLink(member) {
+  const id = member.id || member.player_id || member.ID;
+  const label = `${member.name || "Unknown"}${id ? ` [${id}]` : ""}`;
+
+  if (!id || String(id).startsWith("stealth")) {
+    return escapeHtml(label);
+  }
+
+  return `<a href="https://www.torn.com/profiles.php?XID=${encodeURIComponent(id)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
+}
+
+function handleWars(data, factionId) {
+  const wars = normalizeWars(data, factionId || activeFactionId);
+  const now = Math.floor(Date.now() / 1000);
+  const active = wars.find(war => war.start <= now && (!war.end || war.end > now) && !war.finished);
+  const upcoming = wars.find(war => war.start > now);
+  const selected = active || upcoming || wars[0];
+
+  if (!selected) {
+    activeEnemyId = null;
+    setText("warStatus", "No active ranked war");
+    setText("warTimer", "No active war");
+    setHtml("warOverview", emptyMessage("No ranked war found."));
+    setHtml("enemyHospitalList", emptyMessage("No enemy faction selected."));
+    setHtml("enemyTravelList", emptyMessage("No enemy faction selected."));
+    return;
+  }
+
+  const enemy = selected.enemy;
+  activeEnemyId = enemy?.id || null;
+
+  if (active) {
+    setText("warStatus", `Fighting ${enemy?.name || "unknown faction"}`);
+    setText("warTimer", selected.end ? formatCountdown(selected.end) : `Target ${formatNumber(selected.target)}`);
+  } else if (upcoming) {
+    setText("warStatus", `Matched vs ${enemy?.name || "unknown faction"}`);
+    setText("warTimer", formatCountdown(selected.start));
+  } else {
+    setText("warStatus", `Last war vs ${enemy?.name || "unknown faction"}`);
+    setText("warTimer", "No active war");
+  }
+
+  renderWarOverview(selected, active, upcoming);
+
+  if (activeEnemyId && (active || upcoming)) {
+    loadEnemyFaction(activeEnemyId);
+  } else {
+    setHtml("enemyHospitalList", emptyMessage("No active or matched enemy faction."));
+    setHtml("enemyTravelList", emptyMessage("No active or matched enemy faction."));
+  }
+}
+
+function normalizeWars(data, factionId) {
+  const raw = data.rankedwars || data.ranked_wars || data.wars || data;
+  const entries = Array.isArray(raw) ? raw.map((war, index) => [war.id || index, war]) : Object.entries(raw || {});
+
+  return entries
+    .filter(([, war]) => war && typeof war === "object")
+    .map(([id, war]) => normalizeWar(id, war, factionId))
+    .filter(Boolean)
+    .sort((a, b) => (b.start || 0) - (a.start || 0));
+}
+
+function normalizeWar(id, war, factionId) {
+  const factionsRaw = war.factions || war.faction || {};
+  const factionEntries = Array.isArray(factionsRaw)
+    ? factionsRaw.map((faction, index) => [faction.id || index, faction])
+    : Object.entries(factionsRaw);
+
+  const factions = factionEntries
+    .filter(([, faction]) => faction && typeof faction === "object")
+    .map(([factionEntryId, faction]) => ({
+      ...faction,
+      id: faction.id || faction.ID || faction.faction_id || factionEntryId,
+      name: faction.name || faction.faction_name || `Faction ${factionEntryId}`,
+      score: Number(faction.score || faction.points || faction.chain || 0)
+    }));
+
+  const own = factions.find(faction => String(faction.id) === String(factionId)) || factions[0];
+  const enemy = factions.find(faction => String(faction.id) !== String(own?.id)) || factions[1];
+
+  return {
+    id,
+    start: Number(war.start || war.start_time || 0),
+    end: Number(war.end || war.end_time || 0),
+    target: Number(war.target || war.war_target || 0),
+    winner: war.winner || war.winner_id || null,
+    finished: Boolean(war.winner || war.winner_id || (war.end && Number(war.end) < Date.now() / 1000)),
+    own,
+    enemy
+  };
+}
+
+function renderWarOverview(war, active, upcoming) {
+  const enemyLink = war.enemy?.id
+    ? `<a href="https://www.torn.com/factions.php?step=profile&ID=${encodeURIComponent(war.enemy.id)}" target="_blank" rel="noopener">${escapeHtml(war.enemy.name)} [${escapeHtml(war.enemy.id)}]</a>`
+    : escapeHtml(war.enemy?.name || "Unknown faction");
+
+  const status = active ? "ACTIVE" : upcoming ? "MATCHED" : "LATEST";
+  const timeLine = upcoming
+    ? `Starts ${formatDateTime(war.start)}`
+    : active && war.end
+      ? `Ends ${formatDateTime(war.end)}`
+      : war.start ? `Started ${formatDateTime(war.start)}` : "Time unavailable";
+  const scoreLine = `${escapeHtml(war.own?.name || "Us")}: ${formatNumber(war.own?.score)} | ${escapeHtml(war.enemy?.name || "Enemy")}: ${formatNumber(war.enemy?.score)}`;
+
+  setHtml("warOverview", `
+    <div class="intel-row">
+      <span>
+        ${enemyLink}
+        <small>${escapeHtml(timeLine)}</small>
+      </span>
+      <span class="badge ${active ? "danger" : "warning"}">${status}</span>
+    </div>
+    <div class="intel-row">
+      <span>
+        Score
+        <small>${scoreLine}</small>
+      </span>
+      <span class="badge">Target ${formatNumber(war.target)}</span>
+    </div>
+  `);
+}
+
+async function loadEnemyFaction(enemyId) {
+  try {
+    const data = await loadFactionMembers(enemyId);
+
+    if (String(enemyId) !== String(activeEnemyId)) return;
+
+    const members = normalizeMembers(data.members || data.faction?.members || data);
+    renderEnemyHospital(members);
+    renderEnemyTravel(members);
+  } catch (err) {
+    setHtml("enemyHospitalList", emptyMessage(`Enemy status unavailable: ${err.message}`));
+    setHtml("enemyTravelList", emptyMessage(`Enemy travel unavailable: ${err.message}`));
+  }
+}
+
+function renderEnemyHospital(members) {
+  const hospital = sortByUntil(members.filter(isHospital));
+
+  setHtml(
+    "enemyHospitalList",
+    hospital.length
+      ? hospital.map(member => hospitalRow(member)).join("")
+      : emptyMessage("No enemy members in hospital.")
+  );
+}
+
+function renderEnemyTravel(members) {
+  const travellers = sortByUntil(members.filter(isTravelling));
+
+  setHtml(
+    "enemyTravelList",
+    travellers.length
+      ? travellers.map(member => travelRow(member)).join("")
+      : emptyMessage("No enemy members travelling.")
+  );
+}
+
+function travelRow(member) {
+  const status = getMemberStatus(member);
+  const description = status.description || status.state || "Travelling";
+  const details = status.details && status.details !== description
+    ? ` - ${status.details}`
+    : "";
+  const eta = status.until
+    ? `<span class="countdown warning" data-countdown-until="${status.until}">${formatCountdown(status.until)}</span>`
+    : `<span class="muted">No ETA</span>`;
+
+  return `
+    <div class="intel-row">
+      <span>
+        ${memberLink(member)}
+        <small>${escapeHtml(description + details)}</small>
+      </span>
+      ${eta}
+    </div>
+  `;
+}
+
+function sortByUntil(members) {
+  return [...members].sort((a, b) => {
+    const aUntil = getMemberStatus(a).until || Number.MAX_SAFE_INTEGER;
+    const bUntil = getMemberStatus(b).until || Number.MAX_SAFE_INTEGER;
+    return aUntil - bUntil || a.name.localeCompare(b.name);
+  });
+}
+
+function renderAttacks(data, factionId) {
+  const attacks = normalizeAttacks(data)
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+    .slice(0, 10);
+
+  setHtml(
+    "recentAttacks",
+    attacks.length
+      ? attacks.map(attack => attackRow(attack, factionId || activeFactionId)).join("")
+      : emptyMessage("No recent attacks found.")
+  );
+}
+
+function normalizeAttacks(data) {
+  const raw = data.attacks || data.faction_attacks || data;
+  const entries = Array.isArray(raw) ? raw.map((attack, index) => [attack.id || index, attack]) : Object.entries(raw || {});
+
+  return entries
+    .filter(([, attack]) => attack && typeof attack === "object")
+    .map(([id, attack]) => {
+      const attacker = normalizeAttackPlayer(attack.attacker, "attacker", attack);
+      const defender = normalizeAttackPlayer(attack.defender, "defender", attack);
+
+      return {
+        id,
+        attacker,
+        defender,
+        result: attack.result || attack.outcome || attack.status || "-",
+        timestamp: Number(attack.timestamp_ended || attack.ended || attack.timestamp || attack.started || 0)
+      };
+    });
+}
+
+function normalizeAttackPlayer(player, prefix, attack) {
+  const fallbackId = attack[`${prefix}_id`] || attack[`${prefix}ID`] || `${prefix}-stealth`;
+  const fallbackName = attack[`${prefix}_name`] || attack[`${prefix}Name`] || "Stealthed";
+  const factionId = attack[`${prefix}_faction`] || attack[`${prefix}_faction_id`] || player?.faction_id || player?.faction?.id;
+
+  return {
+    id: player?.id || player?.player_id || fallbackId,
+    name: player?.name || fallbackName,
+    factionId
+  };
+}
+
+function attackRow(attack, factionId) {
+  const direction = String(attack.attacker.factionId) === String(factionId)
+    ? "OUT"
+    : String(attack.defender.factionId) === String(factionId)
+      ? "IN"
+      : "LOG";
+  const directionClass = direction === "IN" ? "danger" : direction === "OUT" ? "good" : "";
+
+  return `
+    <div class="intel-row">
+      <span>
+        ${attackPlayerLink(attack.attacker)} &gt; ${attackPlayerLink(attack.defender)}
+        <small>${escapeHtml(attack.result)}${attack.timestamp ? ` - ${formatDateTime(attack.timestamp)}` : ""}</small>
+      </span>
+      <span class="badge ${directionClass}">${direction}</span>
+    </div>
+  `;
+}
+
+function attackPlayerLink(player) {
+  if (!player.id || String(player.id).includes("stealth")) return escapeHtml(player.name || "Stealthed");
+  return `<a href="https://www.torn.com/profiles.php?XID=${encodeURIComponent(player.id)}" target="_blank" rel="noopener">${escapeHtml(player.name || "Unknown")} [${escapeHtml(player.id)}]</a>`;
+}
+
+async function loadTornStatsRoster() {
+  if (Date.now() - lastTornStatsFetch < TORNSTATS_INTERVAL_MS) return null;
+  const key = tornStatsApiKey || apiKey;
+
+  if (!key) return null;
+
+  lastTornStatsFetch = Date.now();
+  return getTornStatsData(`${TORNSTATS_API}/${encodeURIComponent(key)}/faction/roster`);
+}
+
+function renderTornStats(data, factionMembers) {
+  const roster = findRosterMembers(data);
+  const totals = roster
+    .map(member => battleStatsTotal(member))
+    .filter(total => total > 0);
+  const factionMemberCount = factionMembers.length || roster.length;
+
+  if (!totals.length) {
+    setText("factionBattleStats", "No TornStats data");
+    return;
+  }
+
+  const sum = totals.reduce((total, value) => total + value, 0);
+  setText("factionBattleStats", compactNumber(sum));
+}
+
+function findRosterMembers(data) {
+  const candidates = [
+    data?.faction?.members,
+    data?.faction?.roster,
+    data?.members,
+    data?.roster,
+    data?.data?.members,
+    data?.data?.roster
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+    if (candidate && typeof candidate === "object") return Object.values(candidate);
+  }
+
+  return [];
+}
+
+function battleStatsTotal(member) {
+  const direct = [
+    member.total,
+    member.total_battlestats,
+    member.total_battle_stats,
+    member.battlestats,
+    member.battle_stats_total,
+    member.stats?.total
+  ].map(parseNumberish).find(value => value > 0);
+
+  if (direct) return direct;
+
+  const stats = member.battle_stats || member.battlestats_data || member.stats || {};
+  const totalFromParts = ["strength", "defense", "speed", "dexterity", "defence"]
+    .map(key => parseNumberish(stats[key]))
+    .reduce((total, value) => total + value, 0);
+
+  return totalFromParts;
+}
+
+function parseNumberish(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value !== "string") return 0;
+
+  const match = value.trim().replaceAll(",", "").match(/^([\d.]+)\s*([kmbt])?$/i);
+  if (!match) return 0;
+
+  const multipliers = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 };
+  return Number(match[1]) * (multipliers[match[2]?.toLowerCase()] || 1);
+}
+
+function renderChainPanel(chain) {
+  const current = chain.current ?? chain.chain ?? 0;
+  const max = chain.max ?? chain.maximum ?? chain.best ?? "-";
+  const timeout = chain.timeout || chain.cooldown || 0;
+
+  setHtml("chainPanel", `
+    <p>CURRENT: <span>${formatNumber(current)}</span></p>
+    <p>MAX: <span>${formatNumber(max)}</span></p>
+    <p>TIMEOUT: <span>${timeout ? formatCountdown(timeout) : "-"}</span></p>
+  `);
+}
+
+function formatNumber(value) {
+  if (value === undefined || value === null || value === "") return "-";
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toLocaleString() : String(value);
+}
+
+function compactNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2
+  }).format(number);
+}
+
+function formatCountdown(unixSeconds) {
+  const seconds = Math.max(0, Number(unixSeconds) - Math.floor(Date.now() / 1000));
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (!seconds) return "Back now";
+  if (days) return `${days}d ${hours}h ${minutes}m`;
+  return `${hours}h ${minutes}m ${secs}s`;
+}
+
+function updateCountdowns() {
+  document.querySelectorAll("[data-countdown-until]").forEach(el => {
+    el.innerText = formatCountdown(el.dataset.countdownUntil);
+  });
+}
+
+function formatDateTime(unixSeconds) {
+  if (!unixSeconds) return "-";
+  return new Date(Number(unixSeconds) * 1000).toLocaleString();
+}
+
+function emptyMessage(message) {
+  return `<p class="muted">${escapeHtml(message)}</p>`;
+}
+
+function updateClock() {
+  const now = new Date();
+  setText("clock", now.toLocaleTimeString());
+  setText("date", now.toLocaleDateString());
+}
+
+function init() {
+  const keyInput = document.getElementById("apiKey");
+  if (keyInput && apiKey) keyInput.value = apiKey;
+  const tornStatsKeyInput = document.getElementById("tornStatsApiKey");
+  if (tornStatsKeyInput && tornStatsApiKey) tornStatsKeyInput.value = tornStatsApiKey;
+
+  updateClock();
+  updateCountdowns();
+  loadAllData();
+
+  setInterval(updateClock, 1000);
+  setInterval(updateCountdowns, 1000);
+  setInterval(loadAllData, POLL_INTERVAL_MS);
+}
+
+init();
