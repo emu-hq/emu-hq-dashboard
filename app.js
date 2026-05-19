@@ -1,4 +1,4 @@
-const API = "https://api.torn.com";
+const API = "https://api.torn.com/v2";
 
 let apiKey =
   localStorage.getItem("tornApiKey") || "";
@@ -30,7 +30,7 @@ function showPage(pageId, button) {
   }
 }
 
-// SAVE KEY
+// SAVE API KEY
 function saveKey() {
 
   apiKey =
@@ -84,7 +84,7 @@ async function getData(url) {
   return data;
 }
 
-// LOAD EVERYTHING
+// LOAD ALL
 async function loadAllData() {
 
   if (!apiKey) {
@@ -99,21 +99,21 @@ async function loadAllData() {
 
   try {
 
-    // USER API
+    // USER
     const user =
       await getData(
-        `${API}/user/?selections=profile,bars,personalstats&key=${apiKey}`
+        `${API}/user?selections=profile,bars,personalstats&key=${apiKey}`
       );
 
-    console.log(user);
+    console.log("USER:", user);
 
-    // FACTION API
+    // FACTION
     const faction =
       await getData(
-        `${API}/faction/?selections=basic,members,chain&key=${apiKey}`
+        `${API}/faction?selections=basic,members,chain&key=${apiKey}`
       );
 
-    console.log(faction);
+    console.log("FACTION:", faction);
 
     loadUser(user);
     loadFaction(faction);
@@ -134,7 +134,7 @@ async function loadAllData() {
   }
 }
 
-// USER INFO
+// USER
 function loadUser(user) {
 
   setText(
@@ -166,7 +166,7 @@ function loadUser(user) {
     `${Math.floor(age / 365)} years`
   );
 
-  // LVL DAY
+  // LEVEL PER DAY
   const lvlDay =
     age && user.level
       ? (user.level / age).toFixed(3)
@@ -201,13 +201,13 @@ function loadUser(user) {
     user.karma || "-"
   );
 
-  // FORUM
+  // FORUM POSTS
   setText(
     "forumValue",
     user.forum_posts || "-"
   );
 
-  // PFP
+  // PROFILE IMAGE
   const pfp =
     document.getElementById("playerPfp");
 
@@ -224,7 +224,7 @@ function loadUser(user) {
   }
 }
 
-// FACTION INFO
+// FACTION
 function loadFaction(faction) {
 
   setText(
