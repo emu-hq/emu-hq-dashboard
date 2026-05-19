@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -6,63 +7,127 @@
 </head>
 <body>
 
-<div class="app">
+<div class="screen">
 
-  <div class="top-bar">
-    <div class="tab active" onclick="showTab('dashboard')">🏠</div>
-    <div class="tab" onclick="showTab('members')">👥</div>
-    <div class="tab" onclick="showTab('war')">⚔️</div>
-    <div class="tab" onclick="showTab('chain')">⛓️</div>
-    <div class="tab" onclick="showTab('settings')">⚙️</div>
-  </div>
-
-  <h1 id="pageTitle">🏠 Dashboard</h1>
-
-  <section id="dashboard" class="page active-page">
-    <div class="profile-card">
-      <img src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png">
-      <h2>Pacca</h2>
-      <p>[3149820]</p>
-      <span>EMU HQ TERMINAL v1.1</span>
+  <header>
+    <div>
+      <h1>EMU HQ TERMINAL v1.1</h1>
+      <p>>> EMULATED MILITARY INTELLIGENCE</p>
     </div>
-
-    <div class="grid">
-      <div class="card"><small>LEVEL</small><strong>56</strong></div>
-      <div class="card"><small>STATUS</small><strong>Online</strong></div>
-      <div class="card"><small>WAR</small><strong>Ready</strong></div>
-      <div class="card"><small>CHAIN</small><strong>Active</strong></div>
+    <div class="top-status">
+      CONNECTION: SECURE ●<br>
+      TIME: <span id="clock"></span><br>
+      DATE: <span id="date"></span>
     </div>
-  </section>
+  </header>
 
-  <section id="members" class="page">
-    <div class="card big">
-      <h2>Members</h2>
-      <p>Faction member list will go here.</p>
-    </div>
-  </section>
+  <nav>
+    <button class="active" onclick="showTab('dashboard')">🏠<br>Dashboard</button>
+    <button onclick="showTab('members')">👥<br>Members</button>
+    <button onclick="showTab('war')">⚔️<br>War</button>
+    <button onclick="showTab('chain')">🔗<br>Chain</button>
+    <button onclick="showTab('territory')">🚩<br>Territory</button>
+    <button onclick="showTab('hospital')">🏥<br>Hospital</button>
+    <button onclick="showTab('settings')">⚙️<br>Settings</button>
+  </nav>
 
-  <section id="war" class="page">
-    <div class="card big">
-      <h2>War Terminal</h2>
-      <p>Targets, hospital timers and attack calls will go here.</p>
-    </div>
-  </section>
+  <main>
+    <aside>
+      <div class="panel">
+        <h2>FACTION OVERVIEW</h2>
+        <p>FACTION: EMU HQ</p>
+        <p>RANK: #8</p>
+        <p>RESPECT: 45,231,522,112</p>
+        <p>MEMBERS: 100 / 100</p>
+        <p>POWER: VERY STRONG</p>
+        <p>WAR STATUS: IN WAR</p>
+        <p>CHAIN: 123</p>
+      </div>
 
-  <section id="chain" class="page">
-    <div class="card big">
-      <h2>Chain Tracker</h2>
-      <p>Chain timer, hits and respect tracking will go here.</p>
-    </div>
-  </section>
+      <div class="panel">
+        <h2>WAR TIMER</h2>
+        <div class="timer">05:12:38:47</div>
+        <p>DAYS HRS MINS SECS</p>
+      </div>
+    </aside>
 
-  <section id="settings" class="page">
-    <div class="card big">
-      <h2>Settings</h2>
-      <input id="apiKey" placeholder="Enter Torn API Key">
-      <button onclick="saveKey()">Save API Key</button>
-      <div id="status"></div>
-    </div>
-  </section>
+    <section class="content">
+
+      <div id="dashboard" class="tab-page active-page">
+        <div class="panel profile">
+          <h2>DASHBOARD</h2>
+          <img class="pfp" src="https://www.torn.com/images/profile/3149820.jpg">
+          <h3>Pacca</h3>
+          <p>[3149820]</p>
+          <span>Supreme Egotist</span>
+
+          <div class="stat-grid">
+            <div class="stat"><small>LEVEL</small><strong>56</strong></div>
+            <div class="stat"><small>AGE</small><strong>2 years</strong></div>
+            <div class="stat"><small>LVL/DAY</small><strong>0.061</strong></div>
+            <div class="stat"><small>FRENEMIES</small><strong>+33 💀6</strong></div>
+            <div class="stat"><small>HONOR</small><strong>740</strong></div>
+            <div class="stat"><small>AWARDS</small><strong>293</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="members" class="tab-page panel">
+        <h2>MEMBERS</h2>
+        <p>Member table will go here.</p>
+      </div>
+
+      <div id="war" class="tab-page panel">
+        <h2>WAR TERMINAL</h2>
+        <p>Targets, hospital timers and calls will go here.</p>
+      </div>
+
+      <div id="chain" class="tab-page panel">
+        <h2>CHAIN TRACKER</h2>
+        <p>Chain info will go here.</p>
+      </div>
+
+      <div id="territory" class="tab-page panel">
+        <h2>TERRITORY</h2>
+        <p>Wall slots, tile info and assault notes will go here.</p>
+      </div>
+
+      <div id="hospital" class="tab-page panel">
+        <h2>HOSPITAL</h2>
+        <p>Hospital timers will go here.</p>
+      </div>
+
+      <div id="settings" class="tab-page panel">
+        <h2>SETTINGS</h2>
+        <input id="apiKey" placeholder="Enter Torn API Key">
+        <button onclick="saveKey()">Save API Key</button>
+        <p id="status"></p>
+      </div>
+
+    </section>
+
+    <aside>
+      <div class="panel">
+        <h2>ALERTS</h2>
+        <p>[!] HOSPITAL: 7</p>
+        <p>[!] ENERGY LOW: 12</p>
+        <p>[!] CHAIN AT RISK</p>
+        <p>[!] TERRITORY UNDER ATTACK</p>
+      </div>
+
+      <div class="panel">
+        <h2>ONLINE NOW</h2>
+        <p>PACCA - Online</p>
+        <p>SHOK - Online</p>
+        <p>KYLEE - Online</p>
+        <p>BAZ - Online</p>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    > SYSTEM ONLINE AND OPERATIONAL
+  </footer>
 
 </div>
 
