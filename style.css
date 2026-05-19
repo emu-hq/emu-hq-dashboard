@@ -116,6 +116,12 @@ p{
   color:#c9ffdd;
 }
 
+.link-btn:disabled,
+.locked-link{
+  cursor:not-allowed;
+  opacity:.45;
+}
+
 .center-title{
   text-align:center;
   font-size:46px;
