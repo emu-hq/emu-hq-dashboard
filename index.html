@@ -35,10 +35,7 @@
             <p>RANK: <span id="factionRank">Loading...</span></p>
             <p>RESPECT: <span id="factionRespect">Loading...</span></p>
             <p>MEMBERS: <span id="factionMembers">Loading...</span></p>
-            <p>POWER: <span id="factionPower">Loading...</span></p>
-            <p>TOTAL BS: <span id="factionBattleStats">TornStats pending</span></p>
-            <p>AVG BS: <span id="factionAvgBattleStats">-</span></p>
-            <p>COVERAGE: <span id="battleStatsCoverage">-</span></p>
+            <p>TOTAL BS: <span id="factionBattleStats">Add TornStats key</span></p>
             <p>WAR STATUS: <span id="warStatus">Loading...</span></p>
             <p>CHAIN: <span id="chainValue">Loading...</span></p>
           </div>
@@ -163,10 +160,11 @@
           <section class="panel">
             <div class="panel-title">SETTINGS</div>
             <div class="panel-content">
-              <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
-              <button onclick="saveKey()" class="save-btn">SAVE API KEY</button>
-              <div id="status">Waiting for API key...</div>
-            </div>
+            <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
+            <input id="tornStatsApiKey" type="password" placeholder="Enter TornStats API Key (optional)" />
+            <button onclick="saveKey()" class="save-btn">SAVE API KEY</button>
+            <div id="status">Waiting for API key...</div>
+          </div>
           </section>
         </div>
       </section>
@@ -175,8 +173,6 @@
         <section class="panel">
           <div class="panel-title">ALERTS</div>
           <div class="panel-content">
-            <p>[!] HOSPITAL: <span id="hospitalCount">0</span></p>
-            <p>[!] ENERGY: <span id="energyAlert">Loading...</span></p>
             <p>[!] CHAIN: <span id="chainAlert">Loading...</span></p>
             <p>[!] TERRITORY: <span id="territoryAlert">No assault detected</span></p>
           </div>
