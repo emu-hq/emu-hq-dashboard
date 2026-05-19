@@ -18,120 +18,199 @@ function showPage(pageId, button) {
 
 function saveKey() {
   apiKey = document.getElementById("apiKey").value.trim();
+
   localStorage.setItem("tornApiKey", apiKey);
-  setText("status", "Loading...");
+
   loadAllData();
 }
 
 function setText(id, value) {
   const el = document.getElementById(id);
-  if (el) el.innerText = value;
+
+  if (el) {
+    el.innerText = value;
+  }
 }
 
 async function getData(url) {
-  const res = await fetch(url);
-  const data = await res.json();
+  const response = await fetch(url);
+  const data = await response.json();
 
   if (data.error) {
-    throw new Error(data.error.error || data.error.message || "API Error");
+    throw new Error(data.error.error);
   }
 
   return data;
 }
 
 async function loadAllData() {
-  if (!apiKey) {
-    setText("status", "Enter API key.");
-    return;
-  }
+
+  if (!apiKey) return;
 
   try {
+
+    // PLAYER
     const user = await getData(
-      `${USER_API}/user/?selections=profile,bars&key=${apiKey}`
+      `${USER_API}/user/?selections=profile&key=${apiKey}`
     );
 
-    loadUser(user);
-  } catch (err) {
-    console.error(err);
-    setText("status", "USER ERROR: " + err.message);
-  }
+    console.log("USER", user);
 
-  try {
+    setText("playerName", user.name);
+    setText("playerId", `[${user.player_id}]`);
+    setText("playerRank", user.rank);
+    setText("playerLevel", user.level);
+
+    const years =
+      Math.floor((user.age || 0) / 365);
+
+    setText(
+      "playerAge",
+      `${years} years`
+    );
+
+    setText(
+      "levelDay",
+      (user.level / user.age).toFixed(3)
+    );
+
+    setText(
+      "frenemiesValue",
+      `+${user.friends || 0} 💀${user.enemies || 0}`
+    );
+
+    setText(
+      "honorValue",
+      user.honors_awarded || 0
+    );
+
+    setText(
+      "awardsValue",
+      user.awards || 0
+    );
+
+    setText(
+      "karmaValue",
+      user.karma || 0
+    );
+
+    setText(
+      "forumValue",
+      user.forum_posts || 0
+    );
+
+    // FACTION
     const faction = await getData(
       `${FACTION_API}/faction?selections=basic,members,chain&key=${apiKey}`
     );
 
-    loadFaction(faction);
-    setText("status", "Connected successfully.");
+    console.log("FACTION", faction);
+
+    const factionData =
+      faction.basic || faction;
+
+    setText(
+      "factionName",
+      factionData.name
+    );
+
+    setText(
+      "factionRespect",
+      Number(
+        factionData.respect
+      ).toLocaleString()
+    );
+
+    const members =
+      faction.members || {};
+
+    setText(
+      "factionMembers",
+      Object.keys(members).length
+    );
+
+    const chain =
+      faction.chain?.current || 0;
+
+    setText(
+      "chainValue",
+      chain
+    );
+
+    const online =
+      Object.values(members)
+        .filter(member =>
+          String(
+            member.last_action?.status || ""
+          )
+          .includes("Online")
+        );
+
+    const onlineBox =
+      document.getElementById(
+        "onlineMembers"
+      );
+
+    if (onlineBox) {
+
+      onlineBox.innerHTML =
+        online.map(member =>
+          `<p>${member.name} - Online</p>`
+        ).join("");
+    }
+
+    // PFP
+    const pfp =
+      document.getElementById("playerPfp");
+
+    if (pfp) {
+
+      pfp.src =
+        "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
+    }
+
+    setText(
+      "status",
+      "Connected successfully."
+    );
+
   } catch (err) {
+
     console.error(err);
-    setText("status", "FACTION ERROR: " + err.message);
-  }
-}
 
-function loadUser(user) {
-  setText("playerName", user.name || "Unknown");
-  setText("playerId", `[${user.player_id || "?"}]`);
-  setText("playerRank", user.rank || "-");
-  setText("playerLevel", user.level || "-");
-
-  const age = user.age || 0;
-  setText("playerAge", age ? `${Math.floor(age / 365)} years` : "-");
-
-  const lvlDay = age && user.level
-    ? (user.level / age).toFixed(3)
-    : "-";
-
-  setText("levelDay", lvlDay);
-
-  setText("frenemiesValue", `+${user.friends || 0} 💀${user.enemies || 0}`);
-  setText("honorValue", user.honors_awarded || "-");
-  setText("awardsValue", user.awards || "-");
-  setText("karmaValue", user.karma || "-");
-  setText("forumValue", user.forum_posts || "-");
-
-  const pfp = document.getElementById("playerPfp");
-
-  if (pfp) {
-    pfp.src = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
-  }
-}
-
-function loadFaction(data) {
-  const faction = data.basic || data.faction || data;
-  const membersObj = data.members || faction.members || {};
-  const chainObj = data.chain || faction.chain || {};
-
-  setText("factionName", faction.name || "-");
-  setText("factionRespect", Number(faction.respect || 0).toLocaleString());
-  setText("factionMembers", `${Object.keys(membersObj).length} / ${faction.capacity || "?"}`);
-
-  const chain = chainObj.current || chainObj.chain || chainObj.counter || 0;
-  setText("chainValue", chain);
-
-  const online = Object.values(membersObj).filter(member =>
-    String(member.last_action?.status || "")
-      .toLowerCase()
-      .includes("online")
-  );
-
-  const onlineBox = document.getElementById("onlineMembers");
-
-  if (onlineBox) {
-    onlineBox.innerHTML = online.length
-      ? online.map(member => `<p>${member.name} - Online</p>`).join("")
-      : "<p>No members online.</p>";
+    setText(
+      "status",
+      err.message
+    );
   }
 }
 
 function updateClock() {
-  const now = new Date();
-  setText("clock", now.toLocaleTimeString());
-  setText("date", now.toLocaleDateString());
+
+  const now =
+    new Date();
+
+  setText(
+    "clock",
+    now.toLocaleTimeString()
+  );
+
+  setText(
+    "date",
+    now.toLocaleDateString()
+  );
 }
 
 updateClock();
-setInterval(updateClock, 1000);
+
+setInterval(
+  updateClock,
+  1000
+);
 
 loadAllData();
-setInterval(loadAllData, 30000);
+
+setInterval(
+  loadAllData,
+  30000
+);
