@@ -4,14 +4,8 @@ const FACTION_API = "https://api.torn.com/v2";
 let apiKey = localStorage.getItem("tornApiKey") || "";
 
 function showPage(pageId, button) {
-  document.querySelectorAll(".page").forEach(page => {
-    page.classList.remove("active-page");
-  });
-
-  document.querySelectorAll(".tab").forEach(tab => {
-    tab.classList.remove("active");
-  });
-
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active-page"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   document.getElementById(pageId)?.classList.add("active-page");
   button?.classList.add("active");
 }
@@ -29,8 +23,8 @@ function setText(id, value) {
 }
 
 async function getData(url) {
-  const response = await fetch(url);
-  const data = await response.json();
+  const res = await fetch(url);
+  const data = await res.json();
 
   if (data.error) {
     throw new Error(data.error.error || data.error.message || "API Error");
@@ -49,62 +43,49 @@ async function loadAllData() {
     const user = await getData(
       `${USER_API}/user/?selections=profile,bars&key=${apiKey}`
     );
-
     loadUser(user);
   } catch (err) {
-    console.error(err);
     setText("status", "USER ERROR: " + err.message);
   }
 
   try {
     const faction = await getData(
-      `${FACTION_API}/faction/basic?key=${apiKey}`
+      `${FACTION_API}/faction?selections=basic,members,chain&key=${apiKey}`
     );
-
     loadFaction(faction);
     setText("status", "Connected successfully.");
   } catch (err) {
-    console.error(err);
     setText("status", "FACTION ERROR: " + err.message);
   }
 }
 
 function loadUser(user) {
   setText("playerName", user.name || "Unknown");
-  setText("playerId", `[${user.player_id || user.id || "?"}]`);
+  setText("playerId", `[${user.player_id || "?"}]`);
   setText("playerRank", user.rank || "-");
   setText("playerLevel", user.level || "-");
 
   const age = user.age || 0;
+  setText("playerAge", age ? `${Math.floor(age / 365)} years` : "-");
+  setText("levelDay", age && user.level ? (user.level / age).toFixed(3) : "-");
 
-  setText(
-    "playerAge",
-    age ? `${Math.floor(age / 365)} years` : "-"
-  );
-
-  setText(
-    "levelDay",
-    age && user.level ? (user.level / age).toFixed(3) : "-"
-  );
-
-  setText(
-    "frenemiesValue",
-    `+${user.friends || 0} 💀${user.enemies || 0}`
-  );
-
-  setText("honorValue", user.honors_awarded || user.honor || "-");
+  setText("frenemiesValue", `+${user.friends || 0} 💀${user.enemies || 0}`);
+  setText("honorValue", user.honors_awarded || "-");
   setText("awardsValue", user.awards || "-");
   setText("karmaValue", user.karma || "-");
   setText("forumValue", user.forum_posts || "-");
 
   const pfp = document.getElementById("playerPfp");
-
   if (pfp) {
     pfp.src = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
   }
 }
 
-function loadFaction(faction) {
+function loadFaction(data) {
+  const faction = data.basic || data.faction || data;
+  const membersObj = data.members || faction.members || {};
+  const chainObj = data.chain || faction.chain || {};
+
   setText("factionName", faction.name || "-");
 
   setText(
@@ -112,13 +93,36 @@ function loadFaction(faction) {
     Number(faction.respect || 0).toLocaleString()
   );
 
-  setText("factionMembers", faction.members || "-");
-  setText("chainValue", faction.chain || 0);
+  setText(
+    "factionMembers",
+    `${Object.keys(membersObj).length} / ${faction.capacity || "?"}`
+  );
+
+  const chain =
+    chainObj.current ||
+    chainObj.chain ||
+    chainObj.counter ||
+    0;
+
+  setText("chainValue", chain);
+
+  const online = Object.values(membersObj).filter(m =>
+    String(m.last_action?.status || "")
+      .toLowerCase()
+      .includes("online")
+  );
+
+  const onlineBox = document.getElementById("onlineMembers");
+
+  if (onlineBox) {
+    onlineBox.innerHTML = online.length
+      ? online.map(m => `<p>${m.name} - Online</p>`).join("")
+      : "<p>No members online.</p>";
+  }
 }
 
 function updateClock() {
   const now = new Date();
-
   setText("clock", now.toLocaleTimeString());
   setText("date", now.toLocaleDateString());
 }
