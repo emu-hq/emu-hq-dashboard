@@ -1,94 +1,141 @@
 body {
   margin: 0;
-  padding: 0;
-
-  background-image: url("https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png");
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-  background-color: black;
-
-  color: #00ff66;
-  font-family: monospace;
-
-  text-shadow: 0 0 5px #00ff66;
+  background: #111820;
+  color: #e8edf2;
+  font-family: Arial, sans-serif;
 }
 
-body::before {
-  content: "";
-
-  position: fixed;
-  inset: 0;
-
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(0,255,0,0.03),
-    rgba(0,255,0,0.03) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-
-  pointer-events: none;
+.app {
+  max-width: 700px;
+  margin: auto;
+  padding: 15px;
 }
 
-.terminal {
-  max-width: 1200px;
+.top-bar {
+  display: flex;
+  gap: 10px;
+  background: #151c24;
+  padding: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid #2b3440;
+}
 
-  margin: 40px auto;
+.tab {
+  width: 45px;
+  height: 45px;
+  background: #1b232d;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  cursor: pointer;
+  color: #6d5cff;
+}
 
-  padding: 20px;
-
-  border: 2px solid #00ff66;
-
-  background: rgba(0,0,0,0.75);
-
-  box-shadow:
-    0 0 10px #00ff66,
-    0 0 30px #00ff66;
+.tab.active {
+  background: #29205a;
+  box-shadow: 0 0 12px #6d5cff;
 }
 
 h1 {
-  text-align: center;
-
-  font-size: 48px;
-
-  margin-bottom: 20px;
+  font-size: 32px;
+  font-weight: 400;
+  margin: 20px 0;
 }
 
-button {
-  background: black;
+.page {
+  display: none;
+}
 
-  color: #00ff66;
+.active-page {
+  display: block;
+}
 
-  border: 1px solid #00ff66;
+.profile-card {
+  background: #151c24;
+  border: 1px solid #26313d;
+  border-radius: 18px;
+  padding: 30px;
+  text-align: center;
+  margin-bottom: 25px;
+}
 
-  padding: 10px 20px;
+.profile-card img {
+  width: 170px;
+  height: 170px;
+  object-fit: cover;
+  border-radius: 14px;
+}
 
-  cursor: pointer;
+.profile-card h2 {
+  color: #6d5cff;
+  margin-bottom: 5px;
+}
 
-  font-family: monospace;
+.profile-card p {
+  color: #818995;
+  margin: 0 0 12px;
+}
 
+.profile-card span {
+  background: #6d5cff;
+  color: white;
+  padding: 8px 18px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.card {
+  background: #151c24;
+  border: 1px solid #26313d;
+  border-radius: 12px;
+  padding: 25px;
+  text-align: center;
+}
+
+.card small {
+  color: #7d858f;
+  display: block;
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+.card strong {
+  display: block;
+  font-size: 32px;
+  color: #6d5cff;
   margin-top: 10px;
 }
 
-button:hover {
-  background: #00ff66;
-
-  color: black;
+.big {
+  text-align: left;
 }
 
 input {
   width: 100%;
-
   padding: 12px;
+  box-sizing: border-box;
+  background: #0e141a;
+  border: 1px solid #2b3440;
+  color: white;
+  border-radius: 8px;
+}
 
-  background: #050505;
-
-  border: 1px solid #00ff66;
-
-  color: #00ff66;
-
-  font-family: monospace;
-
+button {
   margin-top: 10px;
+  padding: 12px;
+  width: 100%;
+  background: #6d5cff;
+  color: white;
+  border: none;
+  border-radius: 8px;
 }
