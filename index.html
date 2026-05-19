@@ -11,7 +11,6 @@
 
 <div class="terminal">
 
-  <!-- TOP BAR -->
   <header class="topbar">
     <div class="top-left">
       <h1>EMU HQ TERMINAL v1.1</h1>
@@ -29,15 +28,12 @@
     </div>
   </header>
 
-  <!-- MAIN -->
   <main class="main-layout">
 
-    <!-- LEFT -->
     <aside class="left-column">
 
       <section class="panel">
         <div class="panel-title">FACTION OVERVIEW</div>
-
         <div class="panel-content">
           <p>FACTION: <span id="factionName">Loading...</span></p>
           <p>RANK: <span id="factionRank">#8</span></p>
@@ -51,7 +47,6 @@
 
       <section class="panel">
         <div class="panel-title">QUICK LINKS</div>
-
         <div class="panel-content links">
           <button class="link-btn" onclick="showPage('dashboard', this)">> DASHBOARD</button>
           <button class="link-btn" onclick="showPage('members', this)">> MEMBERS</button>
@@ -65,36 +60,24 @@
 
       <section class="panel">
         <div class="panel-title">WAR TIMER</div>
-
         <div class="panel-content timer-box">
           <div class="timer-label">TIME REMAINING</div>
-
-          <div class="timer" id="warTimer">
-            No active war
-          </div>
-
-          <div class="timer-small">
-            DAYS &nbsp;&nbsp; HRS &nbsp;&nbsp; MINS &nbsp;&nbsp; SECS
-          </div>
+          <div class="timer" id="warTimer">No active war</div>
+          <div class="timer-small">DAYS &nbsp;&nbsp; HRS &nbsp;&nbsp; MINS &nbsp;&nbsp; SECS</div>
         </div>
       </section>
 
     </aside>
 
-    <!-- CENTER -->
     <section class="center-column">
 
       <div id="dashboard" class="page active-page">
-
-        <div class="center-title">
-          EMU HQ TERMINAL v1.1
-        </div>
+        <div class="center-title">EMU HQ TERMINAL v1.1</div>
 
         <section class="api-window">
 
           <div class="api-header">
             <span>> TORN API CONNECTION</span>
-
             <div class="window-buttons">
               <span>—</span>
               <span>✕</span>
@@ -103,151 +86,71 @@
 
           <div class="profile-wrap">
 
-            <img
-              id="playerPfp"
-              class="pfp"
-              src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png"
-            />
+            <img id="playerPfp" class="pfp" src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png" />
 
             <h2 id="playerName">Loading...</h2>
-
             <div id="playerId">[Loading]</div>
 
-            <div class="rank-tag" id="playerRank">
-              Loading...
+            <div class="user-bars">
+              <div class="bar-box">
+                ENERGY
+                <strong id="energyValue">-</strong>
+              </div>
+
+              <div class="bar-box">
+                NERVE
+                <strong id="nerveValue">-</strong>
+              </div>
             </div>
+
+            <div class="rank-tag" id="playerRank">Loading...</div>
 
             <div class="stats-grid">
-
-              <div class="stat">
-                <span>LEVEL</span>
-                <strong id="playerLevel">-</strong>
-              </div>
-
-              <div class="stat">
-                <span>AGE</span>
-                <strong id="playerAge">-</strong>
-              </div>
-
-              <div class="stat">
-                <span>LVL/DAY</span>
-                <strong id="levelDay">-</strong>
-              </div>
-
-              <div class="stat">
-                <span>FRENEMIES</span>
-                <strong id="frenemiesValue">+0 💀0</strong>
-              </div>
-
-              <div class="stat">
-                <span>HONOR</span>
-                <strong id="honorValue">-</strong>
-              </div>
-
-              <div class="stat">
-                <span>AWARDS</span>
-                <strong id="awardsValue">-</strong>
-              </div>
-
-              <div class="stat">
-                <span>KARMA</span>
-                <strong id="karmaValue">-</strong>
-              </div>
-
-              <div class="stat">
-                <span>FORUM</span>
-                <strong id="forumValue">-</strong>
-              </div>
-
+              <div class="stat"><span>LEVEL</span><strong id="playerLevel">-</strong></div>
+              <div class="stat"><span>AGE</span><strong id="playerAge">-</strong></div>
+              <div class="stat"><span>LVL/DAY</span><strong id="levelDay">-</strong></div>
+              <div class="stat"><span>FRENEMIES</span><strong id="frenemiesValue">+0 💀0</strong></div>
+              <div class="stat"><span>HONOR</span><strong id="honorValue">-</strong></div>
+              <div class="stat"><span>AWARDS</span><strong id="awardsValue">-</strong></div>
+              <div class="stat"><span>KARMA</span><strong id="karmaValue">-</strong></div>
+              <div class="stat"><span>FORUM</span><strong id="forumValue">-</strong></div>
             </div>
 
-            <div class="connection-status">
-              🔒 CONNECTION SECURE
-            </div>
+            <div class="connection-status">🔒 CONNECTION SECURE</div>
 
           </div>
-
         </section>
-
       </div>
 
       <div id="members" class="page">
         <section class="panel">
           <div class="panel-title">MEMBERS</div>
-          <div class="panel-content" id="onlineMembers">
-            Loading...
-          </div>
+          <div class="panel-content" id="onlineMembers">Loading...</div>
         </section>
       </div>
 
-      <div id="war" class="page">
-        <section class="panel">
-          <div class="panel-title">WAR</div>
-          <div class="panel-content">
-            War module coming soon.
-          </div>
-        </section>
-      </div>
-
-      <div id="chain" class="page">
-        <section class="panel">
-          <div class="panel-title">CHAIN</div>
-          <div class="panel-content">
-            Chain tracker coming soon.
-          </div>
-        </section>
-      </div>
-
-      <div id="territory" class="page">
-        <section class="panel">
-          <div class="panel-title">TERRITORY</div>
-          <div class="panel-content">
-            Territory tracker coming soon.
-          </div>
-        </section>
-      </div>
-
-      <div id="hospital" class="page">
-        <section class="panel">
-          <div class="panel-title">HOSPITAL</div>
-          <div class="panel-content">
-            Hospital tracker coming soon.
-          </div>
-        </section>
-      </div>
+      <div id="war" class="page"><section class="panel"><div class="panel-title">WAR</div><div class="panel-content">War module coming soon.</div></section></div>
+      <div id="chain" class="page"><section class="panel"><div class="panel-title">CHAIN</div><div class="panel-content">Chain tracker coming soon.</div></section></div>
+      <div id="territory" class="page"><section class="panel"><div class="panel-title">TERRITORY</div><div class="panel-content">Territory tracker coming soon.</div></section></div>
+      <div id="hospital" class="page"><section class="panel"><div class="panel-title">HOSPITAL</div><div class="panel-content">Hospital tracker coming soon.</div></section></div>
 
       <div id="settings" class="page">
         <section class="panel">
           <div class="panel-title">SETTINGS</div>
-
           <div class="panel-content">
-
-            <input
-              id="apiKey"
-              type="text"
-              placeholder="Enter Torn API Key"
-            />
-
-            <button onclick="saveKey()" class="save-btn">
-              SAVE API KEY
-            </button>
-
-            <div id="status">
-              Waiting for API key...
-            </div>
-
+            <input id="apiKey" type="text" placeholder="Enter Torn API Key" />
+            <button onclick="saveKey()" class="save-btn">SAVE API KEY</button>
+            <div id="status">Waiting for API key...</div>
           </div>
         </section>
       </div>
 
     </section>
 
-    <!-- RIGHT -->
     <aside class="right-column">
 
       <section class="panel">
         <div class="panel-title">ALERTS</div>
-
         <div class="panel-content">
           <p>[!] HOSPITAL: <span id="hospitalCount">0</span></p>
           <p>[!] ENERGY: <span id="energyAlert">Loading...</span></p>
@@ -258,20 +161,13 @@
 
       <section class="panel">
         <div class="panel-title">ONLINE NOW</div>
-
-        <div class="panel-content" id="onlineMembersSide">
-          Loading...
-        </div>
+        <div class="panel-content" id="onlineMembersSide">Loading...</div>
       </section>
 
       <section class="panel">
         <div class="panel-title">RECENT ATTACKS</div>
-
         <div class="panel-content">
-          <p>11:20 - Lost to AAA</p>
-          <p>11:18 - Won vs BBB</p>
-          <p>11:15 - Lost to CCC</p>
-          <p>11:12 - Won vs DDD</p>
+          <p>Module coming soon.</p>
         </div>
       </section>
 
@@ -279,7 +175,6 @@
 
   </main>
 
-  <!-- FOOTER -->
   <footer class="footer">
     <span>> SYSTEM ONLINE AND OPERATIONAL</span>
     <span>> HQ EYES EVERYWHERE</span>
