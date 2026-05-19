@@ -1,10 +1,9 @@
-/* style.css */
 body {
   margin: 0;
   background: #000;
-  color: #39ff4a;
-  font-family: "Courier New", monospace;
-  text-shadow: 0 0 6px #39ff4a;
+  color: #00ff66;
+  font-family: monospace;
+  text-shadow: 0 0 6px #00ff66;
 }
 
 body::before {
@@ -13,125 +12,134 @@ body::before {
   inset: 0;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(57,255,74,0.05),
-    rgba(57,255,74,0.05) 1px,
+    rgba(0,255,100,0.04),
+    rgba(0,255,100,0.04) 1px,
     transparent 1px,
     transparent 4px
   );
   pointer-events: none;
-  z-index: 999;
+  z-index: 9999;
 }
 
-.screen {
-  max-width: 1400px;
+.app {
+  max-width: 1200px;
   margin: auto;
-  padding: 16px;
+  padding: 14px;
 }
 
-header, nav, footer, .panel, .stat {
-  border: 1px solid #19ff36;
-  background: rgba(0, 30, 5, 0.55);
-  box-shadow: 0 0 12px rgba(25,255,54,0.35);
+.topbar,
+.card,
+.footer,
+.tabs {
+  border: 1px solid #00ff66;
+  background: rgba(0, 25, 0, 0.55);
+  box-shadow: 0 0 14px rgba(0,255,100,0.45);
 }
 
-header {
+.topbar {
+  padding: 18px;
   display: flex;
   justify-content: space-between;
-  padding: 18px;
-  margin-bottom: 18px;
+  margin-bottom: 10px;
 }
 
-h1, h2, h3, p {
-  margin-top: 0;
+.logo {
+  font-size: 26px;
+  font-weight: bold;
 }
 
 .top-status {
   text-align: right;
 }
 
-nav {
+.terminal-line {
+  margin: 10px 0 14px;
+}
+
+.tabs {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 22px;
+  margin-bottom: 20px;
 }
 
-nav button {
-  background: rgba(0,0,0,0.4);
-  color: #39ff4a;
-  border: 1px solid #0b8f1c;
-  padding: 18px 8px;
-  font-family: inherit;
-  font-size: 16px;
+.tab {
+  background: rgba(0,20,0,0.6);
+  color: #00ff66;
+  border: 1px solid #00ff66;
+  padding: 12px 4px;
+  font-family: monospace;
+  font-size: 13px;
 }
 
-nav button.active {
-  background: rgba(57,255,74,0.18);
-  box-shadow: inset 0 0 20px rgba(57,255,74,0.45);
+.tab.active {
+  background: rgba(0,255,100,0.25);
+  box-shadow: inset 0 0 18px #00ff66;
 }
 
-main {
+.main-layout {
   display: grid;
   grid-template-columns: 260px 1fr 280px;
-  gap: 22px;
+  gap: 18px;
 }
 
-.panel {
+.card {
   padding: 18px;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
 }
 
-.profile {
+h1, h2, p {
+  margin-top: 0;
+}
+
+.profile-card {
   text-align: center;
 }
 
 .pfp {
-  width: 190px;
-  height: 190px;
+  width: 170px;
+  height: 170px;
   object-fit: cover;
-  border-radius: 18px;
-  border: 1px solid #39ff4a;
-  box-shadow: 0 0 18px rgba(57,255,74,0.55);
+  border-radius: 14px;
+  border: 1px solid #00ff66;
+  box-shadow: 0 0 18px #00ff66;
 }
 
-.profile h3 {
-  font-size: 34px;
-  margin: 18px 0 5px;
-}
-
-.profile span {
-  border: 1px solid #39ff4a;
-  padding: 8px 18px;
+.rank-tag {
   display: inline-block;
-  margin-bottom: 20px;
+  padding: 7px 14px;
+  border: 1px solid #00ff66;
+  margin-bottom: 18px;
 }
 
-.stat-grid {
+.stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  margin-top: 25px;
+  gap: 14px;
 }
 
 .stat {
-  padding: 22px;
+  border: 1px solid #00ff66;
+  padding: 18px;
   text-align: center;
+  background: rgba(0,20,0,0.45);
 }
 
 .stat small {
   display: block;
-  margin-bottom: 10px;
+  opacity: 0.8;
+  margin-bottom: 8px;
 }
 
 .stat strong {
-  font-size: 32px;
+  font-size: 26px;
 }
 
-.timer {
-  font-size: 32px;
+.war-timer {
+  font-size: 26px;
   text-align: center;
 }
 
-.tab-page {
+.page {
   display: none;
 }
 
@@ -142,33 +150,36 @@ main {
 input {
   width: 100%;
   box-sizing: border-box;
+  background: #000;
+  color: #00ff66;
+  border: 1px solid #00ff66;
   padding: 12px;
-  background: #020;
-  border: 1px solid #39ff4a;
-  color: #39ff4a;
-  font-family: inherit;
 }
 
-footer {
-  margin-top: 25px;
-  padding: 16px;
+button {
+  cursor: pointer;
 }
 
-@media (max-width: 900px) {
-  main {
-    grid-template-columns: 1fr;
-  }
+.footer {
+  margin-top: 20px;
+  padding: 14px;
+}
 
-  nav {
-    grid-template-columns: repeat(4, 1fr);
-  }
-
-  header {
+@media (max-width: 800px) {
+  .topbar {
     display: block;
   }
 
   .top-status {
     text-align: left;
     margin-top: 10px;
+  }
+
+  .tabs {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .main-layout {
+    grid-template-columns: 1fr;
   }
 }
