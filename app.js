@@ -4,13 +4,8 @@ const FACTION_API = "https://api.torn.com/v2";
 let apiKey = localStorage.getItem("tornApiKey") || "";
 
 function showPage(pageId, button) {
-  document.querySelectorAll(".page").forEach(page =>
-    page.classList.remove("active-page")
-  );
-
-  document.querySelectorAll(".tab, .link-btn").forEach(tab =>
-    tab.classList.remove("active")
-  );
+  document.querySelectorAll(".page").forEach(page => page.classList.remove("active-page"));
+  document.querySelectorAll(".tab, .link-btn").forEach(tab => tab.classList.remove("active"));
 
   document.getElementById(pageId)?.classList.add("active-page");
   button?.classList.add("active");
@@ -58,7 +53,7 @@ async function loadAllData() {
 
   try {
     const faction = await getData(
-      `${FACTION_API}/faction?selections=basic,members,chain,rank&key=${apiKey}`
+      `${FACTION_API}/faction?selections=basic,members,chain&key=${apiKey}`
     );
 
     loadFaction(faction);
@@ -82,18 +77,13 @@ function loadUser(user) {
     age ? `${Math.floor(age / 365)} years` : "-"
   );
 
-  const lvlDay =
-    age && user.level
-      ? (user.level / age).toFixed(3)
-      : "-";
+  const lvlDay = age && user.level
+    ? (user.level / age).toFixed(3)
+    : "-";
 
   setText("levelDay", lvlDay);
 
-  setText(
-    "frenemiesValue",
-    `+${user.friends ?? 0} 💀${user.enemies ?? 0}`
-  );
-
+  setText("frenemiesValue", `+${user.friends ?? 0} 💀${user.enemies ?? 0}`);
   setText("honorValue", user.honor ?? "-");
   setText("awardsValue", user.awards ?? "-");
   setText("karmaValue", user.karma ?? "-");
@@ -117,13 +107,10 @@ function loadUser(user) {
   const pfp = document.getElementById("playerPfp");
 
   if (pfp) {
-    pfp.src =
-      user.profile_image ||
-      "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
+    pfp.src = user.profile_image || "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 
     pfp.onerror = function () {
-      pfp.src =
-        "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
+      pfp.src = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
     };
   }
 }
@@ -132,27 +119,10 @@ function loadFaction(data) {
   const faction = data.basic || data;
   const members = data.members || {};
   const chain = data.chain || {};
-  const rank = data.rank || {};
 
   setText("factionName", faction.name ?? "-");
-
-  setText(
-    "factionRespect",
-    Number(faction.respect || 0).toLocaleString()
-  );
-
+  setText("factionRespect", Number(faction.respect || 0).toLocaleString());
   setText("factionMembers", `${Object.keys(members).length}`);
-
-  setText(
-    "factionRank",
-    `#${rank.position || "-"}`
-  );
-
-  setText(
-    "factionPower",
-    rank.name || rank.title || rank.division || rank.tier || "-"
-  );
-
   setText("chainValue", chain.current ?? 0);
   setText("chainAlert", chain.current ?? 0);
 
@@ -162,12 +132,9 @@ function loadFaction(data) {
       .includes("online")
   );
 
-  const html =
-    onlineMembers.length
-      ? onlineMembers
-          .map(member => `<p>${member.name} - Online</p>`)
-          .join("")
-      : "<p>No members online.</p>";
+  const html = onlineMembers.length
+    ? onlineMembers.map(member => `<p>${member.name} - Online</p>`).join("")
+    : "<p>No members online.</p>";
 
   const onlineBox = document.getElementById("onlineMembers");
   const onlineSide = document.getElementById("onlineMembersSide");
