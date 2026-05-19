@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,172 +11,141 @@
 
 <div class="app">
 
-  <header class="header">
-
+  <header class="topbar">
     <div>
-      <h1>EMU HQ TERMINAL v2.0</h1>
+      <h1>EMU HQ TERMINAL v1.1</h1>
       <p>> EMULATED MILITARY INTELLIGENCE</p>
     </div>
 
     <div class="clock-box">
       <div>CONNECTION: SECURE ●</div>
-      <div id="clock">--:--:--</div>
-      <div id="date">--/--/----</div>
+      <div>TIME: <span id="clock">Loading...</span></div>
+      <div>DATE: <span id="date">Loading...</span></div>
     </div>
-
   </header>
 
   <nav class="tabs">
-
-    <button class="tab active"
-      onclick="showPage('dashboard', this)">
-      🏠<br>Dashboard
-    </button>
-
-    <button class="tab"
-      onclick="showPage('faction', this)">
-      👥<br>Faction
-    </button>
-
-    <button class="tab"
-      onclick="showPage('settings', this)">
-      ⚙️<br>Settings
-    </button>
-
+    <button class="tab active" onclick="showPage('dashboard', this)">🏠<br>Dashboard</button>
+    <button class="tab" onclick="showPage('members', this)">👥<br>Members</button>
+    <button class="tab" onclick="showPage('war', this)">⚔️<br>War</button>
+    <button class="tab" onclick="showPage('chain', this)">🔗<br>Chain</button>
+    <button class="tab" onclick="showPage('territory', this)">🚩<br>Territory</button>
+    <button class="tab" onclick="showPage('hospital', this)">🏥<br>Hospital</button>
+    <button class="tab" onclick="showPage('settings', this)">⚙️<br>Settings</button>
   </nav>
 
-  <!-- DASHBOARD -->
-  <section
-    id="dashboard"
-    class="page active-page">
+  <main class="layout">
 
-    <div class="card profile-card">
+    <aside class="left-panel">
+      <section class="box">
+        <h2>FACTION OVERVIEW</h2>
+        <p>FACTION: <span id="factionName">Loading...</span></p>
+        <p>RESPECT: <span id="factionRespect">Loading...</span></p>
+        <p>MEMBERS: <span id="factionMembers">Loading...</span></p>
+        <p>CHAIN: <span id="chainValue">Loading...</span></p>
+      </section>
 
-      <img
-        id="playerPfp"
-        class="pfp"
-        src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png"
-      >
+      <section class="box">
+        <h2>WAR TIMER</h2>
+        <div class="timer">No active war</div>
+        <p>DAYS HRS MINS SECS</p>
+      </section>
+    </aside>
 
-      <h2 id="playerName">
-        Loading...
-      </h2>
+    <section class="center-panel">
 
-      <p id="playerId">
-        [Loading]
-      </p>
+      <div id="dashboard" class="page active-page">
+        <section class="box profile">
+          <h2>DASHBOARD</h2>
 
-      <div
-        class="rank-tag"
-        id="playerRank">
-        Loading...
+          <img id="playerPfp" class="pfp" src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png">
+
+          <h1 id="playerName">Loading...</h1>
+          <p id="playerId">[Loading]</p>
+          <span id="playerRank" class="rank-tag">Loading...</span>
+
+          <div class="stats-grid">
+            <div class="stat"><small>LEVEL</small><strong id="playerLevel">-</strong></div>
+            <div class="stat"><small>AGE</small><strong id="playerAge">-</strong></div>
+            <div class="stat"><small>LVL/DAY</small><strong id="levelDay">-</strong></div>
+            <div class="stat"><small>FRENEMIES</small><strong id="frenemiesValue">+0 💀0</strong></div>
+            <div class="stat"><small>HONOR</small><strong id="honorValue">-</strong></div>
+            <div class="stat"><small>AWARDS</small><strong id="awardsValue">-</strong></div>
+            <div class="stat"><small>KARMA</small><strong id="karmaValue">-</strong></div>
+            <div class="stat"><small>FORUM</small><strong id="forumValue">-</strong><p>posts</p></div>
+          </div>
+        </section>
       </div>
 
-    </div>
-
-    <div class="stats-grid">
-
-      <div class="stat">
-        <small>LEVEL</small>
-        <strong id="playerLevel">-</strong>
+      <div id="members" class="page">
+        <section class="box">
+          <h2>MEMBERS</h2>
+          <div id="onlineMembers">Loading...</div>
+        </section>
       </div>
 
-      <div class="stat">
-        <small>AGE</small>
-        <strong id="playerAge">-</strong>
+      <div id="war" class="page">
+        <section class="box">
+          <h2>WAR TERMINAL</h2>
+          <p>War tools coming next.</p>
+        </section>
       </div>
 
-      <div class="stat">
-        <small>LVL/DAY</small>
-        <strong id="levelDay">-</strong>
+      <div id="chain" class="page">
+        <section class="box">
+          <h2>CHAIN TRACKER</h2>
+          <p>CURRENT CHAIN: <span id="chainDisplay">Loading...</span></p>
+        </section>
       </div>
 
-      <div class="stat">
-        <small>FRENEMIES</small>
-        <strong id="frenemiesValue">+0 💀0</strong>
+      <div id="territory" class="page">
+        <section class="box">
+          <h2>TERRITORY</h2>
+          <p>Territory tools coming next.</p>
+        </section>
       </div>
 
-      <div class="stat">
-        <small>HONORS</small>
-        <strong id="honorValue">-</strong>
+      <div id="hospital" class="page">
+        <section class="box">
+          <h2>HOSPITAL</h2>
+          <p>Hospital list coming next.</p>
+        </section>
       </div>
 
-      <div class="stat">
-        <small>AWARDS</small>
-        <strong id="awardsValue">-</strong>
+      <div id="settings" class="page">
+        <section class="box">
+          <h2>SETTINGS</h2>
+          <input id="apiKey" placeholder="Enter Torn API Key">
+          <button onclick="saveKey()">Save API Key</button>
+          <p id="status">Waiting for API key...</p>
+        </section>
       </div>
 
-      <div class="stat">
-        <small>KARMA</small>
-        <strong id="karmaValue">-</strong>
-      </div>
+    </section>
 
-      <div class="stat">
-        <small>FORUM</small>
-        <strong id="forumValue">-</strong>
-      </div>
+    <aside class="right-panel">
+      <section class="box">
+        <h2>ALERTS</h2>
+        <p>[!] HOSPITAL: 0</p>
+        <p>[!] YOUR ENERGY: Live soon</p>
+        <p>[!] CHAIN: <span id="chainValue">Loading...</span></p>
+        <p>[!] TERRITORY: No assault detected</p>
+      </section>
 
-    </div>
+      <section class="box">
+        <h2>ONLINE NOW</h2>
+        <div id="onlineMembers">Loading...</div>
+      </section>
+    </aside>
 
-  </section>
+  </main>
 
-  <!-- FACTION -->
-  <section
-    id="faction"
-    class="page">
-
-    <div class="card">
-
-      <h2>FACTION OVERVIEW</h2>
-
-      <p>FACTION: <span id="factionName">Loading...</span></p>
-      <p>RESPECT: <span id="factionRespect">Loading...</span></p>
-      <p>MEMBERS: <span id="factionMembers">Loading...</span></p>
-      <p>CHAIN: <span id="chainValue">Loading...</span></p>
-
-    </div>
-
-    <div class="card">
-
-      <h2>ONLINE NOW</h2>
-
-      <div id="onlineMembers">
-        Loading...
-      </div>
-
-    </div>
-
-  </section>
-
-  <!-- SETTINGS -->
-  <section
-    id="settings"
-    class="page">
-
-    <div class="card">
-
-      <h2>SETTINGS</h2>
-
-      <input
-        id="apiKey"
-        placeholder="Enter Torn API Key"
-      >
-
-      <button onclick="saveKey()">
-        Save API Key
-      </button>
-
-      <p id="status">
-        Waiting for API key...
-      </p>
-
-    </div>
-
-  </section>
+  <footer class="footer">
+    > SYSTEM ONLINE AND OPERATIONAL
+  </footer>
 
 </div>
 
 <script src="app.js"></script>
-
 </body>
 </html>
