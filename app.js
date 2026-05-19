@@ -3,7 +3,6 @@ const API = "https://api.torn.com/v2";
 let apiKey = localStorage.getItem("tornApiKey") || "";
 
 function showPage(pageId, button) {
-
   document.querySelectorAll(".page").forEach(page => {
     page.classList.remove("active-page");
   });
@@ -13,255 +12,123 @@ function showPage(pageId, button) {
   });
 
   document.getElementById(pageId)?.classList.add("active-page");
-
   button?.classList.add("active");
 }
 
 function saveKey() {
-
-  apiKey =
-    document.getElementById("apiKey").value.trim();
-
+  apiKey = document.getElementById("apiKey").value.trim();
   localStorage.setItem("tornApiKey", apiKey);
-
   setText("status", "Loading...");
-
   loadAllData();
 }
 
 function setText(id, value) {
-
-  const el =
-    document.getElementById(id);
-
-  if (el) {
-    el.innerText = value;
-  }
+  const el = document.getElementById(id);
+  if (el) el.innerText = value;
 }
 
 async function getData(url) {
-
-  const response =
-    await fetch(url);
-
-  const data =
-    await response.json();
+  const response = await fetch(url);
+  const data = await response.json();
 
   if (data.error) {
-
-    throw new Error(
-      data.error.error ||
-      data.error.message ||
-      "API Error"
-    );
+    throw new Error(data.error.error || data.error.message || "API Error");
   }
 
   return data;
 }
 
 async function loadAllData() {
-
   if (!apiKey) {
-
-    setText(
-      "status",
-      "Enter API key."
-    );
-
+    setText("status", "Enter API key.");
     return;
   }
 
   try {
+    const user = await getData(
+      `${API}/user?selections=basic,bars&key=${apiKey}`
+    );
 
-    const user =
-      await getData(
-        `${API}/user/basic?key=${apiKey}`
-      );
-
-    console.log(user);
+    console.log("USER DATA:", user);
 
     loadUser(user);
-
   } catch (err) {
-
     console.error(err);
-
-    setText(
-      "status",
-      "USER ERROR: " + err.message
-    );
+    setText("status", "USER ERROR: " + err.message);
   }
 
   try {
+    const faction = await getData(
+      `${API}/faction/basic?key=${apiKey}`
+    );
 
-    const faction =
-      await getData(
-        `${API}/faction/basic?key=${apiKey}`
-      );
-
-    console.log(faction);
+    console.log("FACTION DATA:", faction);
 
     loadFaction(faction);
 
-    setText(
-      "status",
-      "Connected successfully."
-    );
-
+    setText("status", "Connected successfully.");
   } catch (err) {
-
     console.error(err);
-
-    setText(
-      "status",
-      "FACTION ERROR: " + err.message
-    );
+    setText("status", "FACTION ERROR: " + err.message);
   }
 }
 
-function loadUser(user) {
+function loadUser(data) {
+  const user = data.user || data.basic || data;
 
-  setText(
-    "playerName",
-    user.name || "Unknown"
-  );
+  setText("playerName", user.name || "Unknown");
+  setText("playerId", `[${user.id || user.player_id || "?"}]`);
+  setText("playerRank", user.rank || user.title || "-");
+  setText("playerLevel", user.level || "-");
 
-  setText(
-    "playerId",
-    `[${user.id || "?"}]`
-  );
+  const age = user.age || 0;
+  setText("playerAge", age ? `${Math.floor(age / 365)} years` : "-");
 
-  setText(
-    "playerRank",
-    user.rank || "-"
-  );
-
-  setText(
-    "playerLevel",
-    user.level || "-"
-  );
-
-  // AGE
-  const age =
-    user.age || 0;
-
-  const years =
-    Math.floor(age / 365);
-
-  setText(
-    "playerAge",
-    `${years} years`
-  );
-
-  // LVL/DAY
   const lvlDay =
     age && user.level
       ? (user.level / age).toFixed(3)
       : "-";
 
-  setText(
-    "levelDay",
-    lvlDay
-  );
+  setText("levelDay", lvlDay);
 
-  // FRENEMIES
-  setText(
-    "frenemiesValue",
-    `+${user.friends || 0} 💀${user.enemies || 0}`
-  );
+  setText("frenemiesValue", `+${user.friends || 0} 💀${user.enemies || 0}`);
 
-  // HONORS
-  setText(
-    "honorValue",
-    user.honors || "-"
-  );
+  setText("honorValue", user.honors || user.honors_awarded || "-");
+  setText("awardsValue", user.awards || "-");
+  setText("karmaValue", user.karma || "-");
+  setText("forumValue", user.forum_posts || "-");
 
-  // AWARDS
-  setText(
-    "awardsValue",
-    user.awards || "-"
-  );
+  const pfp = document.getElementById("playerPfp");
+  const id = user.id || user.player_id;
 
-  // KARMA
-  setText(
-    "karmaValue",
-    user.karma || "-"
-  );
-
-  // FORUM
-  setText(
-    "forumValue",
-    user.forum_posts || "-"
-  );
-
-  // PROFILE IMAGE
-  const pfp =
-    document.getElementById("playerPfp");
-
-  if (pfp && user.id) {
-
-    pfp.src =
-      `https://www.torn.com/images/profile/${user.id}.jpg`;
-
+  if (pfp && id) {
+    pfp.src = `https://www.torn.com/images/profile/${id}.jpg`;
     pfp.onerror = () => {
-
-      pfp.src =
-        "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
+      pfp.src = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
     };
   }
 }
 
 function loadFaction(faction) {
-
-  setText(
-    "factionName",
-    faction.name || "-"
-  );
+  setText("factionName", faction.name || "-");
 
   setText(
     "factionRespect",
-    Number(
-      faction.respect || 0
-    ).toLocaleString()
+    Number(faction.respect || 0).toLocaleString()
   );
 
-  setText(
-    "factionMembers",
-    faction.members || "-"
-  );
-
-  setText(
-    "chainValue",
-    faction.chain || 0
-  );
+  setText("factionMembers", faction.members || "-");
+  setText("chainValue", faction.chain || 0);
 }
 
 function updateClock() {
-
-  const now =
-    new Date();
-
-  setText(
-    "clock",
-    now.toLocaleTimeString()
-  );
-
-  setText(
-    "date",
-    now.toLocaleDateString()
-  );
+  const now = new Date();
+  setText("clock", now.toLocaleTimeString());
+  setText("date", now.toLocaleDateString());
 }
 
 updateClock();
-
-setInterval(
-  updateClock,
-  1000
-);
+setInterval(updateClock, 1000);
 
 loadAllData();
-
-setInterval(
-  loadAllData,
-  30000
-);
+setInterval(loadAllData, 30000);
