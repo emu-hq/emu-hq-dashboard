@@ -1,52 +1,137 @@
+/* style.css */
 body {
   margin: 0;
-  background: #111820;
-  color: #e8edf2;
-  font-family: Arial, sans-serif;
+  background: #000;
+  color: #39ff4a;
+  font-family: "Courier New", monospace;
+  text-shadow: 0 0 6px #39ff4a;
 }
 
-.app {
-  max-width: 700px;
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(57,255,74,0.05),
+    rgba(57,255,74,0.05) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  pointer-events: none;
+  z-index: 999;
+}
+
+.screen {
+  max-width: 1400px;
   margin: auto;
-  padding: 15px;
+  padding: 16px;
 }
 
-.top-bar {
+header, nav, footer, .panel, .stat {
+  border: 1px solid #19ff36;
+  background: rgba(0, 30, 5, 0.55);
+  box-shadow: 0 0 12px rgba(25,255,54,0.35);
+}
+
+header {
   display: flex;
-  gap: 10px;
-  background: #151c24;
-  padding: 10px;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  border-bottom: 1px solid #2b3440;
+  justify-content: space-between;
+  padding: 18px;
+  margin-bottom: 18px;
 }
 
-.tab {
-  width: 45px;
-  height: 45px;
-  background: #1b232d;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  cursor: pointer;
-  color: #6d5cff;
+h1, h2, h3, p {
+  margin-top: 0;
 }
 
-.tab.active {
-  background: #29205a;
-  box-shadow: 0 0 12px #6d5cff;
+.top-status {
+  text-align: right;
 }
 
-h1 {
+nav {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 22px;
+}
+
+nav button {
+  background: rgba(0,0,0,0.4);
+  color: #39ff4a;
+  border: 1px solid #0b8f1c;
+  padding: 18px 8px;
+  font-family: inherit;
+  font-size: 16px;
+}
+
+nav button.active {
+  background: rgba(57,255,74,0.18);
+  box-shadow: inset 0 0 20px rgba(57,255,74,0.45);
+}
+
+main {
+  display: grid;
+  grid-template-columns: 260px 1fr 280px;
+  gap: 22px;
+}
+
+.panel {
+  padding: 18px;
+  margin-bottom: 22px;
+}
+
+.profile {
+  text-align: center;
+}
+
+.pfp {
+  width: 190px;
+  height: 190px;
+  object-fit: cover;
+  border-radius: 18px;
+  border: 1px solid #39ff4a;
+  box-shadow: 0 0 18px rgba(57,255,74,0.55);
+}
+
+.profile h3 {
+  font-size: 34px;
+  margin: 18px 0 5px;
+}
+
+.profile span {
+  border: 1px solid #39ff4a;
+  padding: 8px 18px;
+  display: inline-block;
+  margin-bottom: 20px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 25px;
+}
+
+.stat {
+  padding: 22px;
+  text-align: center;
+}
+
+.stat small {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.stat strong {
   font-size: 32px;
-  font-weight: 400;
-  margin: 20px 0;
 }
 
-.page {
+.timer {
+  font-size: 32px;
+  text-align: center;
+}
+
+.tab-page {
   display: none;
 }
 
@@ -54,88 +139,36 @@ h1 {
   display: block;
 }
 
-.profile-card {
-  background: #151c24;
-  border: 1px solid #26313d;
-  border-radius: 18px;
-  padding: 30px;
-  text-align: center;
-  margin-bottom: 25px;
-}
-
-.profile-card img {
-  width: 170px;
-  height: 170px;
-  object-fit: cover;
-  border-radius: 14px;
-}
-
-.profile-card h2 {
-  color: #6d5cff;
-  margin-bottom: 5px;
-}
-
-.profile-card p {
-  color: #818995;
-  margin: 0 0 12px;
-}
-
-.profile-card span {
-  background: #6d5cff;
-  color: white;
-  padding: 8px 18px;
-  border-radius: 999px;
-  display: inline-block;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-}
-
-.card {
-  background: #151c24;
-  border: 1px solid #26313d;
-  border-radius: 12px;
-  padding: 25px;
-  text-align: center;
-}
-
-.card small {
-  color: #7d858f;
-  display: block;
-  font-size: 16px;
-  letter-spacing: 1px;
-}
-
-.card strong {
-  display: block;
-  font-size: 32px;
-  color: #6d5cff;
-  margin-top: 10px;
-}
-
-.big {
-  text-align: left;
-}
-
 input {
   width: 100%;
-  padding: 12px;
   box-sizing: border-box;
-  background: #0e141a;
-  border: 1px solid #2b3440;
-  color: white;
-  border-radius: 8px;
+  padding: 12px;
+  background: #020;
+  border: 1px solid #39ff4a;
+  color: #39ff4a;
+  font-family: inherit;
 }
 
-button {
-  margin-top: 10px;
-  padding: 12px;
-  width: 100%;
-  background: #6d5cff;
-  color: white;
-  border: none;
-  border-radius: 8px;
+footer {
+  margin-top: 25px;
+  padding: 16px;
+}
+
+@media (max-width: 900px) {
+  main {
+    grid-template-columns: 1fr;
+  }
+
+  nav {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  header {
+    display: block;
+  }
+
+  .top-status {
+    text-align: left;
+    margin-top: 10px;
+  }
 }
