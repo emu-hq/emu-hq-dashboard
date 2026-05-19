@@ -4,14 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260519-2" />
 </head>
 
 <body>
   <div class="terminal">
     <header class="topbar">
       <div class="top-left">
-        <h1>EMU HQ TERMINAL v1.2</h1>
+        <h1>EMU HQ TERMINAL v1.3</h1>
         <p>&gt; EMULATED MILITARY INTELLIGENCE</p>
       </div>
 
@@ -44,7 +44,7 @@
         <section class="panel">
           <div class="panel-title">QUICK LINKS</div>
           <div class="panel-content links">
-            <button class="link-btn active" onclick="showPage('dashboard', this)">&gt; DASHBOARD</button>
+            <button class="link-btn" onclick="showPage('dashboard', this)">&gt; DASHBOARD</button>
             <button class="link-btn" onclick="showPage('members', this)">&gt; MEMBERS</button>
             <button class="link-btn" onclick="showPage('war', this)">&gt; WAR</button>
             <button class="link-btn" onclick="showPage('chain', this)">&gt; CHAIN</button>
@@ -65,8 +65,8 @@
       </aside>
 
       <section class="center-column">
-        <div id="dashboard" class="page active-page">
-          <div class="center-title">EMU HQ TERMINAL v1.2</div>
+        <div id="dashboard" class="page">
+        <div class="center-title">EMU HQ TERMINAL v1.3</div>
 
           <section class="api-window">
             <div class="api-header">
@@ -156,7 +156,7 @@
           </section>
         </div>
 
-        <div id="settings" class="page">
+        <div id="settings" class="page active-page">
           <section class="panel">
             <div class="panel-title">SETTINGS</div>
             <div class="panel-content">
@@ -197,6 +197,6 @@
     </footer>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260519-2"></script>
 </body>
 </html>
