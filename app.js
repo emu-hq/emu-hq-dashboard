@@ -1,18 +1,25 @@
-const API_V1 = "https://api.torn.com";
+const API = "https://api.torn.com";
 
-let apiKey = localStorage.getItem("tornApiKey") || "";
+let apiKey =
+  localStorage.getItem("tornApiKey") || "";
 
-function showTab(tabName, button) {
-
-  document
-    .querySelectorAll(".tab-page, .page")
-    .forEach(p => p.classList.remove("active-page"));
+// PAGE TABS
+function showPage(pageId, button) {
 
   document
-    .querySelectorAll("nav button, .tab")
-    .forEach(t => t.classList.remove("active"));
+    .querySelectorAll(".page")
+    .forEach(page => {
+      page.classList.remove("active-page");
+    });
 
-  const page = document.getElementById(tabName);
+  document
+    .querySelectorAll(".tab")
+    .forEach(tab => {
+      tab.classList.remove("active");
+    });
+
+  const page =
+    document.getElementById(pageId);
 
   if (page) {
     page.classList.add("active-page");
@@ -23,6 +30,7 @@ function showTab(tabName, button) {
   }
 }
 
+// SAVE KEY
 function saveKey() {
 
   apiKey =
@@ -38,56 +46,52 @@ function saveKey() {
 
   setText(
     "status",
-    "API key saved. Loading..."
+    "Loading data..."
   );
 
   loadAllData();
 }
 
-function setText(ids, value) {
+// TEXT HELPER
+function setText(id, value) {
 
-  if (!Array.isArray(ids)) {
-    ids = [ids];
+  const el =
+    document.getElementById(id);
+
+  if (el) {
+    el.innerText = value;
   }
-
-  ids.forEach(id => {
-
-    const el =
-      document.getElementById(id);
-
-    if (el) {
-      el.innerText = value;
-    }
-  });
 }
 
-async function getJson(url) {
+// FETCH JSON
+async function getData(url) {
 
-  const res =
+  const response =
     await fetch(url);
 
   const data =
-    await res.json();
+    await response.json();
 
   if (data.error) {
 
     throw new Error(
       data.error.error ||
       data.error.message ||
-      "API error"
+      "API Error"
     );
   }
 
   return data;
 }
 
+// LOAD EVERYTHING
 async function loadAllData() {
 
   if (!apiKey) {
 
     setText(
       "status",
-      "Enter API key in settings."
+      "Enter API key."
     );
 
     return;
@@ -95,25 +99,28 @@ async function loadAllData() {
 
   try {
 
+    // USER API
     const user =
-      await getJson(
-        `${API_V1}/user/?selections=profile,bars,personalstats&key=${apiKey}`
+      await getData(
+        `${API}/user/?selections=profile,bars,personalstats&key=${apiKey}`
       );
 
+    console.log(user);
+
+    // FACTION API
     const faction =
-      await getJson(
-        `${API_V1}/faction/?selections=basic,members,chain&key=${apiKey}`
+      await getData(
+        `${API}/faction/?selections=basic,members,chain&key=${apiKey}`
       );
 
-    console.log("USER:", user);
-    console.log("FACTION:", faction);
+    console.log(faction);
 
     loadUser(user);
     loadFaction(faction);
 
     setText(
       "status",
-      "Live data loaded."
+      "Connected successfully."
     );
 
   } catch (err) {
@@ -127,6 +134,7 @@ async function loadAllData() {
   }
 }
 
+// USER INFO
 function loadUser(user) {
 
   setText(
@@ -136,19 +144,7 @@ function loadUser(user) {
 
   setText(
     "playerId",
-    `[${user.player_id || user.id || "?"}]`
-  );
-
-  setText(
-    "playerLevel",
-    user.level || "-"
-  );
-
-  setText(
-    "playerStatus",
-    user.status?.description ||
-    user.status?.state ||
-    "-"
+    `[${user.player_id || "?"}]`
   );
 
   setText(
@@ -156,47 +152,29 @@ function loadUser(user) {
     user.rank || "-"
   );
 
-  // ENERGY
-  const energy =
-    user.energy;
-
   setText(
-    ["energyValue", "energyAlert"],
-    energy
-      ? `${energy.current} / ${energy.maximum}`
-      : "-"
+    "playerLevel",
+    user.level || "-"
   );
 
   // AGE
-  const ageDays =
+  const age =
     user.age || 0;
-
-  const ageText =
-    ageDays
-      ? `${Math.floor(ageDays / 365)} years`
-      : "-";
 
   setText(
     "playerAge",
-    ageText
+    `${Math.floor(age / 365)} years`
   );
 
-  setText(
-    "ageDays",
-    ageDays
-      ? `${ageDays} days`
-      : ""
-  );
-
-  // LEVEL PER DAY
-  const levelDay =
-    ageDays && user.level
-      ? (user.level / ageDays).toFixed(3)
+  // LVL DAY
+  const lvlDay =
+    age && user.level
+      ? (user.level / age).toFixed(3)
       : "-";
 
   setText(
     "levelDay",
-    levelDay
+    lvlDay
   );
 
   // FRENEMIES
@@ -205,68 +183,57 @@ function loadUser(user) {
     `+${user.friends || 0} 💀${user.enemies || 0}`
   );
 
-  // HONOR
+  // HONORS
   setText(
     "honorValue",
-    user.honors_awarded ||
-    "-"
+    user.honors_awarded || "-"
   );
 
   // AWARDS
   setText(
     "awardsValue",
-    user.awards ||
-    "-"
+    user.awards || "-"
   );
 
   // KARMA
   setText(
     "karmaValue",
-    user.karma ||
-    "-"
+    user.karma || "-"
   );
 
-  // FORUM POSTS
+  // FORUM
   setText(
     "forumValue",
-    user.forum_posts ||
-    user.personalstats?.forum_posts ||
-    "-"
+    user.forum_posts || "-"
   );
 
-  // PROFILE IMAGE
-  const img =
+  // PFP
+  const pfp =
     document.getElementById("playerPfp");
 
-  if (img) {
+  if (pfp) {
 
-    img.src =
-      `https://www.torn.com/images/profile/${user.player_id || user.id}.jpg`;
+    pfp.src =
+      `https://www.torn.com/images/profile/${user.player_id}.jpg`;
 
-    img.onerror = () => {
+    pfp.onerror = () => {
 
-      img.src =
+      pfp.src =
         "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
     };
   }
 }
 
+// FACTION INFO
 function loadFaction(faction) {
 
   setText(
-    ["factionName", "dashFaction"],
+    "factionName",
     faction.name || "-"
   );
 
   setText(
-    "factionRank",
-    faction.rank
-      ? `#${faction.rank}`
-      : "-"
-  );
-
-  setText(
-    ["factionRespect", "dashRespect"],
+    "factionRespect",
     Number(
       faction.respect || 0
     ).toLocaleString()
@@ -274,45 +241,27 @@ function loadFaction(faction) {
 
   setText(
     "factionMembers",
-    `${Object.keys(faction.members || {}).length} / ${faction.capacity || "?"}`
+    Object.keys(
+      faction.members || {}
+    ).length
   );
 
-  setText(
-    "factionPower",
-    faction.best_chain ||
-    "-"
-  );
-
-  setText(
-    ["warStatus", "warStatus2"],
-    "No active war"
-  );
-
-  // CHAIN
   const chain =
     faction.chain?.current ||
-    faction.chain?.chain ||
     faction.chain ||
     0;
 
   setText(
-    [
-      "chainValue",
-      "chainValue2",
-      "dashChain",
-      "chainTracker",
-      "chainAlert"
-    ],
+    "chainValue",
     chain
   );
 
-  // MEMBERS
+  // ONLINE MEMBERS
   const members =
     Object.values(
       faction.members || {}
     );
 
-  // ONLINE
   const online =
     members.filter(m =>
       String(
@@ -321,44 +270,6 @@ function loadFaction(faction) {
       .toLowerCase()
       .includes("online")
     );
-
-  // HOSPITAL
-  const hospital =
-    members.filter(m =>
-      String(
-        m.status?.description ||
-        m.status?.state ||
-        ""
-      )
-      .toLowerCase()
-      .includes("hospital")
-    );
-
-  setText(
-    [
-      "hospitalAlert",
-      "hospitalAlert2",
-      "hospitalCount"
-    ],
-    hospital.length
-  );
-
-  setText(
-    [
-      "territoryAlert",
-      "territoryAlert2",
-      "territoryStatus"
-    ],
-    "No assault detected"
-  );
-
-  setText(
-    [
-      "warTimer",
-      "warTimer2"
-    ],
-    "No active war"
-  );
 
   const onlineBox =
     document.getElementById(
@@ -376,6 +287,7 @@ function loadFaction(faction) {
   }
 }
 
+// CLOCK
 function updateClock() {
 
   const now =
@@ -392,6 +304,7 @@ function updateClock() {
   );
 }
 
+// START
 updateClock();
 
 setInterval(
