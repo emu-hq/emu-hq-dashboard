@@ -1,105 +1,206 @@
 const API = "https://api.torn.com/v2";
-
 let apiKey = localStorage.getItem("tornApiKey") || "";
+let warInterval = null;
+
+function showTab(tabName, button) {
+  document.querySelectorAll(".tab-page").forEach(page => {
+    page.classList.remove("active-page");
+  });
+
+  document.querySelectorAll("nav button").forEach(btn => {
+    btn.classList.remove("active");
+  });
+
+  document.getElementById(tabName).classList.add("active-page");
+  button.classList.add("active");
+}
 
 function saveKey() {
   apiKey = document.getElementById("apiKey").value.trim();
   localStorage.setItem("tornApiKey", apiKey);
-  document.getElementById("status").innerText = "API key saved. Loading data...";
+  setText("status", "API key saved. Loading live data...");
   loadAllData();
 }
 
 async function tornFetch(path) {
-  const res = await fetch(`${API}${path}?key=${apiKey}`);
-  const data = await res.json();
+  const separator = path.includes("?") ? "&" : "?";
+  const response = await fetch(`${API}${path}${separator}key=${apiKey}`);
+  const data = await response.json();
 
   if (data.error) {
-    throw new Error(data.error.error || data.error);
+    throw new Error(data.error.error || data.error.message || JSON.stringify(data.error));
   }
 
   return data;
 }
 
 async function loadAllData() {
-  if (!apiKey) return;
+  if (!apiKey) {
+    setText("status", "Enter API key in Settings.");
+    return;
+  }
 
   try {
     await loadUser();
     await loadFaction();
-    document.getElementById("status").innerText = "Live data loaded.";
-  } catch (err) {
-    console.error(err);
-    document.getElementById("status").innerText = "API error: " + err.message;
+
+    setText("status", "Live data loaded.");
+  } catch (error) {
+    console.error(error);
+    setText("status", "API error: " + error.message);
   }
 }
 
 async function loadUser() {
   const user = await tornFetch("/user?selections=basic,profile,bars");
 
-  setText("playerName", user.name || "Unknown");
-  setText("playerId", `[${user.player_id || user.id || "?"}]`);
-  setText("playerLevel", user.level || "-");
-  setText("playerStatus", user.status?.description || user.status?.state || "-");
+  const name = user.name || "Unknown";
+  const id = user.player_id || user.id || "?";
+  const level = user.level || "-";
+  const status = user.status?.description || user.status?.state || "-";
+  const rank = user.rank || user.role || "Agent";
 
-  setText("energyValue", `${user.energy?.current || 0} / ${user.energy?.maximum || 0}`);
+  setText("playerName", name);
+  setText("playerId", `[${id}]`);
+  setText("playerLevel", level);
+  setText("playerStatus", status);
+  setText("playerRank", rank);
+
+  const energy = user.energy
+    ? `${user.energy.current} / ${user.energy.maximum}`
+    : "-";
+
+  setText("energyValue", energy);
+  setText("energyAlert", energy);
 
   if (user.profile_image) {
-    document.getElementById("playerPfp").src = user.profile_image;
+    const img = document.getElementById("playerPfp");
+    if (img) img.src = user.profile_image;
   }
 }
 
 async function loadFaction() {
   const faction = await tornFetch("/faction?selections=basic,members,chain,wars,territory");
 
-  setText("factionName", faction.name || "Unknown");
-  setText("factionRespect", Number(faction.respect || 0).toLocaleString());
-  setText("factionMembers", `${Object.keys(faction.members || {}).length} / ${faction.capacity || "?"}`);
+  const name = faction.name || "Unknown";
+  const respect = Number(faction.respect || 0).toLocaleString();
+  const capacity = faction.capacity || "?";
 
-  setText("chainValue", faction.chain?.current || faction.chain || 0);
+  const membersRaw = faction.members || {};
+  const members = Array.isArray(membersRaw)
+    ? membersRaw
+    : Object.values(membersRaw);
 
-  const members = Object.values(faction.members || {});
+  const memberCount = members.length;
 
-  const hospitalCount = members.filter(m =>
-    String(m.status?.state || "").toLowerCase().includes("hospital") ||
-    String(m.status?.description || "").toLowerCase().includes("hospital")
-  ).length;
+  const chain =
+    faction.chain?.current ||
+    faction.chain?.counter ||
+    faction.chain ||
+    0;
 
-  setText("hospitalAlert", hospitalCount);
+  setText("factionName", name);
+  setText("dashFaction", name);
+  setText("factionRespect", respect);
+  setText("dashRespect", respect);
+  setText("factionMembers", `${memberCount} / ${capacity}`);
+  setText("chainValue", chain);
+  setText("chainValue2", chain);
+  setText("dashChain", chain);
+  setText("chainAlert", chain);
 
-  const online = members.filter(m =>
-    String(m.last_action?.status || "").toLowerCase() === "online"
-  );
+  setText("factionRank", faction.rank || "#?");
+  setText("factionPower", faction.power || faction.best_chain || "-");
 
-  const onlineBox = document.getElementById("onlineMembers");
-  onlineBox.innerHTML = online.length
-    ? online.map(m => `<p>${m.name} - Online</p>`).join("")
-    : "<p>No members online</p>";
-
-  loadWarTimer(faction);
-  loadTerritoryAlert(faction);
+  loadMembers(members);
+  loadOnlineMembers(members);
+  loadHospital(members);
+  loadWar(faction);
+  loadTerritory(faction);
 }
 
-function loadWarTimer(faction) {
-  let startTime = null;
+function loadMembers(members) {
+  const box = document.getElementById("memberList");
+  if (!box) return;
 
-  const wars = faction.wars || faction.ranked_wars || [];
-
-  if (Array.isArray(wars) && wars.length) {
-    startTime = wars[0]?.start || wars[0]?.start_time;
-  }
-
-  if (!startTime) {
-    setText("warTimer", "No upcoming war");
+  if (!members.length) {
+    box.innerHTML = "<p>No members found.</p>";
     return;
   }
 
-  const warStartMs = startTime * 1000;
+  box.innerHTML = members
+    .slice(0, 40)
+    .map(member => {
+      const name = member.name || "Unknown";
+      const status = member.status?.description || member.status?.state || "-";
+      const online = member.last_action?.status || "-";
+
+      return `<p>${name} - ${online} - ${status}</p>`;
+    })
+    .join("");
+}
+
+function loadOnlineMembers(members) {
+  const online = members.filter(member =>
+    String(member.last_action?.status || "").toLowerCase() === "online"
+  );
+
+  const box = document.getElementById("onlineMembers");
+  if (!box) return;
+
+  box.innerHTML = online.length
+    ? online.map(member => `<p>${member.name} - Online</p>`).join("")
+    : "<p>No members online.</p>";
+}
+
+function loadHospital(members) {
+  const hospitalCount = members.filter(member => {
+    const state = String(member.status?.state || "").toLowerCase();
+    const desc = String(member.status?.description || "").toLowerCase();
+
+    return state.includes("hospital") || desc.includes("hospital");
+  }).length;
+
+  setText("hospitalAlert", hospitalCount);
+  setText("hospitalAlert2", hospitalCount);
+}
+
+function loadWar(faction) {
+  let warStatus = "No active war";
+  let startTime = null;
+
+  const wars = faction.wars || faction.ranked_wars || faction.territory_wars || [];
+
+  if (Array.isArray(wars) && wars.length) {
+    const war = wars[0];
+
+    warStatus = war.status || war.state || "War found";
+    startTime = war.start || war.start_time || war.startTime || null;
+  }
+
+  setText("warStatus", warStatus);
+  setText("warStatus2", warStatus);
+
+  if (!startTime) {
+    setText("warStart", "No upcoming war");
+    setText("warTimer", "No upcoming war");
+    setText("warTimer2", "No upcoming war");
+    return;
+  }
+
+  const startMs = Number(startTime) * 1000;
+  const startDate = new Date(startMs);
+
+  setText("warStart", startDate.toLocaleString());
+
+  if (warInterval) clearInterval(warInterval);
 
   function tick() {
-    const diff = warStartMs - Date.now();
+    const diff = startMs - Date.now();
 
     if (diff <= 0) {
       setText("warTimer", "WAR LIVE");
+      setText("warTimer2", "WAR LIVE");
       return;
     }
 
@@ -108,26 +209,47 @@ function loadWarTimer(faction) {
     const m = Math.floor((diff % 3600000) / 60000);
     const s = Math.floor((diff % 60000) / 1000);
 
-    setText("warTimer", `${d}d ${h}h ${m}m ${s}s`);
+    const text = `${d}d ${h}h ${m}m ${s}s`;
+
+    setText("warTimer", text);
+    setText("warTimer2", text);
   }
 
   tick();
-  setInterval(tick, 1000);
+  warInterval = setInterval(tick, 1000);
 }
 
-function loadTerritoryAlert(faction) {
+function loadTerritory(faction) {
   const territory = faction.territory || {};
-  const underAttack = Object.values(territory).some(tile =>
-    tile.war || tile.assault || tile.attacking_faction
+  const tiles = Array.isArray(territory) ? territory : Object.values(territory);
+
+  const underAttack = tiles.some(tile =>
+    tile.war ||
+    tile.assault ||
+    tile.attacking_faction ||
+    tile.defending_faction
   );
 
-  setText("territoryAlert", underAttack ? "UNDER ATTACK" : "Clear");
+  const text = underAttack ? "UNDER ATTACK" : "Clear";
+
+  setText("territoryAlert", text);
+  setText("territoryAlert2", text);
 }
 
 function setText(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.innerText = value;
+  const element = document.getElementById(id);
+  if (element) element.innerText = value;
 }
 
-setInterval(loadAllData, 30000);
+function updateClock() {
+  const now = new Date();
+
+  setText("clock", now.toLocaleTimeString());
+  setText("date", now.toLocaleDateString());
+}
+
+updateClock();
+setInterval(updateClock, 1000);
+
 loadAllData();
+setInterval(loadAllData, 30000);
