@@ -1,4 +1,5 @@
-const API = "https://api.torn.com/v2";
+const USER_API = "https://api.torn.com";
+const FACTION_API = "https://api.torn.com/v2";
 
 let apiKey = localStorage.getItem("tornApiKey") || "";
 
@@ -46,10 +47,8 @@ async function loadAllData() {
 
   try {
     const user = await getData(
-      `${API}/user?selections=basic,bars&key=${apiKey}`
+      `${USER_API}/user/?selections=profile,bars&key=${apiKey}`
     );
-
-    console.log("USER DATA:", user);
 
     loadUser(user);
   } catch (err) {
@@ -59,13 +58,10 @@ async function loadAllData() {
 
   try {
     const faction = await getData(
-      `${API}/faction/basic?key=${apiKey}`
+      `${FACTION_API}/faction/basic?key=${apiKey}`
     );
 
-    console.log("FACTION DATA:", faction);
-
     loadFaction(faction);
-
     setText("status", "Connected successfully.");
   } catch (err) {
     console.error(err);
@@ -73,39 +69,38 @@ async function loadAllData() {
   }
 }
 
-function loadUser(data) {
-  const user = data.user || data.basic || data;
-
+function loadUser(user) {
   setText("playerName", user.name || "Unknown");
-  setText("playerId", `[${user.id || user.player_id || "?"}]`);
-  setText("playerRank", user.rank || user.title || "-");
+  setText("playerId", `[${user.player_id || user.id || "?"}]`);
+  setText("playerRank", user.rank || "-");
   setText("playerLevel", user.level || "-");
 
   const age = user.age || 0;
-  setText("playerAge", age ? `${Math.floor(age / 365)} years` : "-");
 
-  const lvlDay =
-    age && user.level
-      ? (user.level / age).toFixed(3)
-      : "-";
+  setText(
+    "playerAge",
+    age ? `${Math.floor(age / 365)} years` : "-"
+  );
 
-  setText("levelDay", lvlDay);
+  setText(
+    "levelDay",
+    age && user.level ? (user.level / age).toFixed(3) : "-"
+  );
 
-  setText("frenemiesValue", `+${user.friends || 0} 💀${user.enemies || 0}`);
+  setText(
+    "frenemiesValue",
+    `+${user.friends || 0} 💀${user.enemies || 0}`
+  );
 
-  setText("honorValue", user.honors || user.honors_awarded || "-");
+  setText("honorValue", user.honors_awarded || user.honor || "-");
   setText("awardsValue", user.awards || "-");
   setText("karmaValue", user.karma || "-");
   setText("forumValue", user.forum_posts || "-");
 
   const pfp = document.getElementById("playerPfp");
-  const id = user.id || user.player_id;
 
-  if (pfp && id) {
-    pfp.src = `https://www.torn.com/images/profile/${id}.jpg`;
-    pfp.onerror = () => {
-      pfp.src = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
-    };
+  if (pfp) {
+    pfp.src = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
   }
 }
 
@@ -123,6 +118,7 @@ function loadFaction(faction) {
 
 function updateClock() {
   const now = new Date();
+
   setText("clock", now.toLocaleTimeString());
   setText("date", now.toLocaleDateString());
 }
