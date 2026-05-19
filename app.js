@@ -2,6 +2,7 @@ const TORN_API_V1 = "https://api.torn.com";
 const TORN_API_V2 = "https://api.torn.com/v2";
 const TORNSTATS_API = "https://www.tornstats.com/api/v2";
 const DEFAULT_TORNSTATS_API_KEY = "TS_xadoL6TlERDZo35O";
+const BUILD_VERSION = "2026-05-19-github-pages-1";
 const POLL_INTERVAL_MS = 30000;
 const TORNSTATS_INTERVAL_MS = 120000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
@@ -19,6 +20,13 @@ function getStoredTornStatsKey() {
 }
 
 function showPage(pageId, button) {
+  if (!apiKey && pageId !== "settings") {
+    pageId = "settings";
+    const quickLinks = document.querySelectorAll(".link-btn");
+    button = quickLinks[quickLinks.length - 1] || button;
+    setText("status", "Enter Torn API key to unlock terminal.");
+  }
+
   document.querySelectorAll(".page").forEach(page => page.classList.remove("active-page"));
   document.querySelectorAll(".link-btn").forEach(tab => tab.classList.remove("active"));
 
@@ -34,7 +42,26 @@ function saveKey() {
   lastTornStatsFetch = 0;
   setText("factionBattleStats", "Loading...");
   setText("status", "Connecting...");
+  syncAccessState();
   loadAllData();
+}
+
+function syncAccessState() {
+  const locked = !apiKey;
+  document.body.classList.toggle("locked", locked);
+
+  document.querySelectorAll(".link-btn").forEach(button => {
+    const target = button.getAttribute("onclick") || "";
+    const isSettings = target.includes("'settings'") || target.includes('"settings"');
+
+    if (isSettings) {
+      button.classList.toggle("active", locked && document.getElementById("settings")?.classList.contains("active-page"));
+      return;
+    }
+
+    button.disabled = locked;
+    button.classList.toggle("locked-link", locked);
+  });
 }
 
 function setText(id, value) {
@@ -104,6 +131,8 @@ async function loadAllData() {
   if (!apiKey) {
     setText("status", "Enter API key.");
     renderNoKeyState();
+    showPage("settings");
+    syncAccessState();
     return;
   }
 
@@ -180,6 +209,13 @@ async function loadAllData() {
       ? warnings.length ? `Connected with limits: ${warnings.join(" | ")}` : "Connected successfully."
       : `Connection failed: ${warnings.join(" | ")}`
   );
+
+  syncAccessState();
+
+  if (connected && document.getElementById("settings")?.classList.contains("active-page")) {
+    const dashboardButton = document.querySelector(".link-btn");
+    showPage("dashboard", dashboardButton);
+  }
 }
 
 async function loadUserData() {
@@ -902,6 +938,8 @@ function updateClock() {
 }
 
 function init() {
+  window.EMU_TERMINAL_BUILD = BUILD_VERSION;
+
   const keyInput = document.getElementById("apiKey");
   if (keyInput && apiKey) keyInput.value = apiKey;
   const tornStatsKeyInput = document.getElementById("tornStatsApiKey");
@@ -909,6 +947,15 @@ function init() {
 
   updateClock();
   updateCountdowns();
+  syncAccessState();
+
+  if (!apiKey) {
+    showPage("settings");
+    setText("status", "Enter Torn API key to unlock terminal.");
+  } else {
+    showPage("dashboard", document.querySelector(".link-btn"));
+  }
+
   loadAllData();
 
   setInterval(updateClock, 1000);
