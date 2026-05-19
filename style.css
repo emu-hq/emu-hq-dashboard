@@ -1,16 +1,15 @@
 body {
   margin: 0;
-  background: #000;
+  background: #020702;
   color: #00ff66;
   font-family: monospace;
-  text-shadow: 0 0 6px #00ff66;
-  overflow-x: hidden;
 }
 
 body::before {
   content: "";
   position: fixed;
   inset: 0;
+
   background:
     repeating-linear-gradient(
       to bottom,
@@ -19,88 +18,69 @@ body::before {
       transparent 1px,
       transparent 4px
     );
+
   pointer-events: none;
-  z-index: 9999;
 }
 
 .app {
-  max-width: 1200px;
+  max-width: 900px;
   margin: auto;
-  padding: 14px;
+  padding: 12px;
 }
 
-.topbar,
-.card,
-.footer,
-.tabs {
+.header {
   border: 1px solid #00ff66;
-  background: rgba(0,25,0,0.55);
-  box-shadow: 0 0 14px rgba(0,255,100,0.45);
-}
+  padding: 16px;
+  margin-bottom: 14px;
 
-.topbar {
-  padding: 18px;
   display: flex;
   justify-content: space-between;
-  margin-bottom: 10px;
-  gap: 10px;
+
+  background: rgba(0,20,0,0.45);
+
+  box-shadow: 0 0 16px rgba(0,255,100,0.35);
 }
 
-.logo {
-  font-size: 26px;
-  font-weight: bold;
-}
-
-.top-status {
+.clock-box {
   text-align: right;
-}
-
-.terminal-line {
-  margin: 10px 0 14px;
 }
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
   margin-bottom: 20px;
 }
 
 .tab {
-  background: rgba(0,20,0,0.6);
-  color: #00ff66;
   border: 1px solid #00ff66;
-  padding: 12px 4px;
+  background: rgba(0,20,0,0.45);
+  color: #00ff66;
+  padding: 12px;
   font-family: monospace;
-  font-size: 13px;
-  cursor: pointer;
 }
 
 .tab.active {
-  background: rgba(0,255,100,0.25);
-  box-shadow: inset 0 0 18px #00ff66;
+  background: rgba(0,255,100,0.2);
+  box-shadow: 0 0 12px #00ff66;
 }
 
-.main-layout {
-  display: grid;
-  grid-template-columns: 260px 1fr 280px;
-  gap: 18px;
+.page {
+  display: none;
 }
 
-.left-column,
-.center-column,
-.right-column {
-  min-width: 0;
+.active-page {
+  display: block;
 }
 
 .card {
+  border: 1px solid #00ff66;
+  background: rgba(0,20,0,0.45);
+
   padding: 18px;
   margin-bottom: 18px;
-}
 
-h1,
-h2,
-p {
-  margin-top: 0;
+  box-shadow: 0 0 14px rgba(0,255,100,0.25);
 }
 
 .profile-card {
@@ -110,17 +90,24 @@ p {
 .pfp {
   width: 170px;
   height: 170px;
+
   object-fit: cover;
-  border-radius: 14px;
+
+  border-radius: 16px;
+
   border: 1px solid #00ff66;
-  box-shadow: 0 0 18px #00ff66;
+
+  box-shadow: 0 0 14px #00ff66;
 }
 
 .rank-tag {
   display: inline-block;
-  padding: 7px 14px;
+
+  padding: 8px 14px;
+
   border: 1px solid #00ff66;
-  margin-bottom: 18px;
+
+  margin-top: 10px;
 }
 
 .stats-grid {
@@ -133,44 +120,29 @@ p {
   border: 1px solid #00ff66;
   padding: 18px;
   text-align: center;
-  background: rgba(0,20,0,0.45);
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
 }
 
 .stat small {
   display: block;
+  margin-bottom: 10px;
   opacity: 0.8;
-  margin-bottom: 8px;
 }
 
 .stat strong {
-  font-size: 26px;
-  line-height: 1.2;
-}
-
-.war-timer {
-  font-size: 26px;
-  text-align: center;
-}
-
-.page {
-  display: none;
-}
-
-.active-page {
-  display: block;
+  font-size: 28px;
 }
 
 input {
   width: 100%;
   box-sizing: border-box;
-  background: #000;
+
+  background: black;
   color: #00ff66;
+
   border: 1px solid #00ff66;
+
   padding: 12px;
+
   margin-bottom: 10px;
 }
 
@@ -178,79 +150,18 @@ button {
   cursor: pointer;
 }
 
-.footer {
-  margin-top: 20px;
-  padding: 14px;
-}
+@media (max-width: 700px) {
 
-/* MOBILE */
-
-@media (max-width: 800px) {
-
-  .app {
-    padding: 8px;
-  }
-
-  .topbar {
+  .header {
     flex-direction: column;
-    align-items: flex-start;
+    gap: 10px;
   }
 
-  .top-status {
+  .clock-box {
     text-align: left;
-    font-size: 14px;
-  }
-
-  .logo {
-    font-size: 20px;
-  }
-
-  .tabs {
-    grid-template-columns: repeat(4, 1fr);
-  }
-
-  .tab {
-    font-size: 11px;
-    padding: 10px 2px;
-  }
-
-  .main-layout {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .left-column {
-    order: 2;
-  }
-
-  .center-column {
-    order: 1;
-  }
-
-  .right-column {
-    order: 3;
-  }
-
-  .pfp {
-    width: 140px;
-    height: 140px;
   }
 
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-  }
-
-  .stat {
-    min-height: 100px;
-    padding: 12px;
-  }
-
-  .stat strong {
-    font-size: 22px;
-  }
-
-  .war-timer {
-    font-size: 22px;
   }
 }
