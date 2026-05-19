@@ -1,16 +1,22 @@
 const TORN_API_V1 = "https://api.torn.com";
 const TORN_API_V2 = "https://api.torn.com/v2";
 const TORNSTATS_API = "https://www.tornstats.com/api/v2";
+const DEFAULT_TORNSTATS_API_KEY = "TS_xadoL6TlERDZo35O";
 const POLL_INTERVAL_MS = 30000;
 const TORNSTATS_INTERVAL_MS = 120000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 
 let apiKey = localStorage.getItem("tornApiKey") || "";
-let tornStatsApiKey = localStorage.getItem("tornStatsApiKey") || "";
+let tornStatsApiKey = getStoredTornStatsKey();
 let loadSequence = 0;
 let activeFactionId = null;
 let activeEnemyId = null;
 let lastTornStatsFetch = 0;
+
+function getStoredTornStatsKey() {
+  const storedKey = localStorage.getItem("tornStatsApiKey") || "";
+  return storedKey.startsWith("TS_") ? storedKey : DEFAULT_TORNSTATS_API_KEY;
+}
 
 function showPage(pageId, button) {
   document.querySelectorAll(".page").forEach(page => page.classList.remove("active-page"));
@@ -22,7 +28,7 @@ function showPage(pageId, button) {
 
 function saveKey() {
   apiKey = document.getElementById("apiKey").value.trim();
-  tornStatsApiKey = document.getElementById("tornStatsApiKey")?.value.trim() || "";
+  tornStatsApiKey = document.getElementById("tornStatsApiKey")?.value.trim() || DEFAULT_TORNSTATS_API_KEY;
   localStorage.setItem("tornApiKey", apiKey);
   localStorage.setItem("tornStatsApiKey", tornStatsApiKey);
   lastTornStatsFetch = 0;
@@ -57,7 +63,7 @@ function tornUrl(version, path, params) {
 }
 
 async function getData(url) {
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: "no-store" });
   let data;
 
   try {
@@ -105,13 +111,12 @@ async function loadAllData() {
 
   const requests = [
     loadUserData(),
-    getData(tornUrl(2, "/faction", { selections: "basic,members,chain", key: apiKey })),
+    loadFactionData(),
     getData(tornUrl(2, "/faction", { selections: "rankedwars", key: apiKey })),
-    getData(tornUrl(2, "/faction", { selections: "attacks", limit: "20", sort: "DESC", key: apiKey })),
-    loadTornStatsRoster()
+    loadFactionAttacksData()
   ];
 
-  const [userResult, factionResult, warsResult, attacksResult, tornStatsResult] =
+  const [userResult, factionResult, warsResult, attacksResult] =
     await Promise.allSettled(requests);
 
   if (sequence !== loadSequence) return;
@@ -167,11 +172,7 @@ async function loadAllData() {
     setHtml("recentAttacks", emptyMessage("Faction attack data unavailable for this key."));
   }
 
-  if (tornStatsResult.status === "fulfilled" && tornStatsResult.value) {
-    renderTornStats(tornStatsResult.value, factionState?.members || []);
-  } else if (tornStatsResult.status === "rejected") {
-    setText("factionBattleStats", "TornStats unavailable");
-  }
+  await loadAndRenderTornStats(factionState);
 
   setText(
     "status",
@@ -187,6 +188,33 @@ async function loadUserData() {
   } catch (err) {
     return getData(tornUrl(1, "/user/", { selections: "profile,bars", key: apiKey }));
   }
+}
+
+async function loadFactionData() {
+  const [combinedResult, basicResult] = await Promise.allSettled([
+    getData(tornUrl(2, "/faction", { selections: "basic,members,chain", key: apiKey })),
+    getData(tornUrl(2, "/faction/basic", { key: apiKey }))
+  ]);
+
+  if (combinedResult.status === "rejected" && basicResult.status === "rejected") {
+    throw combinedResult.reason;
+  }
+
+  const combined = combinedResult.status === "fulfilled" ? combinedResult.value : {};
+  const basic = basicResult.status === "fulfilled" ? basicResult.value.basic : combined.basic;
+
+  return {
+    ...combined,
+    basic: basic || combined.basic
+  };
+}
+
+function loadFactionAttacksData() {
+  return getData(tornUrl(2, "/faction/attacks", {
+    limit: "20",
+    sort: "DESC",
+    key: apiKey
+  }));
 }
 
 function renderNoKeyState() {
@@ -241,7 +269,7 @@ function loadUser(user) {
 
   const pfp = document.getElementById("playerPfp");
   if (pfp) {
-    pfp.src = profile.profile_image || user.profile_image || PLACEHOLDER_PFP;
+    pfp.src = profile.image || profile.profile_image || user.profile_image || user.image || PLACEHOLDER_PFP;
     pfp.onerror = function () {
       pfp.src = PLACEHOLDER_PFP;
     };
@@ -267,7 +295,7 @@ function loadFaction(data) {
   activeFactionId = factionId || activeFactionId;
 
   setText("factionName", faction.name ?? "-");
-  setText("factionRank", formatRankPosition(faction));
+  setText("factionRank", formatFactionRank(faction));
   setText("factionRespect", formatNumber(faction.respect));
   setText("factionMembers", `${members.length || faction.members || "-"}`);
 
@@ -291,12 +319,6 @@ function renderFactionMembers(members) {
   renderOwnHospital(members);
 }
 
-function formatRankPosition(faction) {
-  const rank = faction.rank || faction.ranked_wars || {};
-  const position = rank.position ?? rank.rank ?? faction.position ?? faction.rank_position;
-  return position ? `#${formatNumber(position)}` : "-";
-}
-
 function formatFactionRank(faction) {
   const rank = faction.rank || {};
 
@@ -306,10 +328,11 @@ function formatFactionRank(faction) {
 
   const name = rank.name ?? rank.title ?? faction.rank_name ?? "";
   const division = rank.division ?? rank.tier ?? faction.division ?? faction.rank_division;
+  const visibleDivision = Number(division) > 0 ? division : "";
 
   if (!name && division === undefined) return "-";
 
-  return [titleCase(name), division].filter(value => value !== undefined && value !== null && value !== "").join(" ");
+  return [titleCase(name), visibleDivision].filter(value => value !== undefined && value !== null && value !== "").join(" ");
 }
 
 function titleCase(value) {
@@ -704,14 +727,45 @@ function attackPlayerLink(player) {
   return `<a href="https://www.torn.com/profiles.php?XID=${encodeURIComponent(player.id)}" target="_blank" rel="noopener">${escapeHtml(player.name || "Unknown")} [${escapeHtml(player.id)}]</a>`;
 }
 
-async function loadTornStatsRoster() {
-  if (Date.now() - lastTornStatsFetch < TORNSTATS_INTERVAL_MS) return null;
-  const key = tornStatsApiKey || apiKey;
+async function loadAndRenderTornStats(factionState) {
+  if (Date.now() - lastTornStatsFetch < TORNSTATS_INTERVAL_MS) return;
 
-  if (!key) return null;
+  const key = tornStatsApiKey || DEFAULT_TORNSTATS_API_KEY;
+  const factionId = factionState?.factionId || activeFactionId;
+
+  if (!key) {
+    setText("factionBattleStats", "Add TornStats key");
+    return;
+  }
 
   lastTornStatsFetch = Date.now();
+
+  try {
+    const roster = await loadTornStatsRoster(key);
+    renderTornStats(roster, factionState?.members || []);
+    return;
+  } catch (rosterErr) {
+    if (!factionId) {
+      setText("factionBattleStats", "No faction ID");
+      return;
+    }
+
+    try {
+      const factionSpy = await loadTornStatsFactionSpy(key, factionId);
+      renderTornStats(factionSpy, factionState?.members || []);
+    } catch (spyErr) {
+      setText("factionBattleStats", "TornStats unavailable");
+      console.warn("TornStats failed", rosterErr, spyErr);
+    }
+  }
+}
+
+function loadTornStatsRoster(key) {
   return getTornStatsData(`${TORNSTATS_API}/${encodeURIComponent(key)}/faction/roster`);
+}
+
+function loadTornStatsFactionSpy(key, factionId) {
+  return getTornStatsData(`${TORNSTATS_API}/${encodeURIComponent(key)}/spy/faction/${encodeURIComponent(factionId)}`);
 }
 
 function renderTornStats(data, factionMembers) {
@@ -719,7 +773,6 @@ function renderTornStats(data, factionMembers) {
   const totals = roster
     .map(member => battleStatsTotal(member))
     .filter(total => total > 0);
-  const factionMemberCount = factionMembers.length || roster.length;
 
   if (!totals.length) {
     setText("factionBattleStats", "No TornStats data");
@@ -755,6 +808,7 @@ function battleStatsTotal(member) {
     member.total_battle_stats,
     member.battlestats,
     member.battle_stats_total,
+    member.spy?.total,
     member.stats?.total
   ].map(parseNumberish).find(value => value > 0);
 
@@ -855,4 +909,5 @@ function init() {
   setInterval(loadAllData, POLL_INTERVAL_MS);
 }
 
+init();
 init();
