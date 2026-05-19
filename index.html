@@ -1,39 +1,79 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>EMU HQ Terminal</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EMU HQ TERMINAL</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
+
 <body>
 
-<div class="screen">
+<div class="app">
 
-  <header>
-    <div>
-      <h1>EMU HQ TERMINAL v1.1</h1>
-      <p>>> EMULATED MILITARY INTELLIGENCE</p>
+  <div class="topbar">
+    <div class="logo">
+      EMU HQ TERMINAL v1.1
     </div>
+
     <div class="top-status">
       CONNECTION: SECURE ●<br>
       TIME: <span id="clock">Loading...</span><br>
       DATE: <span id="date">Loading...</span>
     </div>
-  </header>
+  </div>
 
-  <nav>
-    <button class="active" onclick="showTab('dashboard', this)">🏠<br>Dashboard</button>
-    <button onclick="showTab('members', this)">👥<br>Members</button>
-    <button onclick="showTab('war', this)">⚔️<br>War</button>
-    <button onclick="showTab('chain', this)">🔗<br>Chain</button>
-    <button onclick="showTab('territory', this)">🚩<br>Territory</button>
-    <button onclick="showTab('hospital', this)">🏥<br>Hospital</button>
-    <button onclick="showTab('settings', this)">⚙️<br>Settings</button>
-  </nav>
+  <div class="terminal-line">
+    >> EMULATED MILITARY INTELLIGENCE
+  </div>
 
-  <main>
-    <aside>
-      <div class="panel">
+  <div class="tabs">
+
+    <button class="tab active"
+      onclick="showTab('dashboard', this)">
+      🏠<br>Dashboard
+    </button>
+
+    <button class="tab"
+      onclick="showTab('members', this)">
+      👥<br>Members
+    </button>
+
+    <button class="tab"
+      onclick="showTab('war', this)">
+      ⚔️<br>War
+    </button>
+
+    <button class="tab"
+      onclick="showTab('chain', this)">
+      🔗<br>Chain
+    </button>
+
+    <button class="tab"
+      onclick="showTab('territory', this)">
+      🚩<br>Territory
+    </button>
+
+    <button class="tab"
+      onclick="showTab('hospital', this)">
+      🏥<br>Hospital
+    </button>
+
+    <button class="tab"
+      onclick="showTab('settings', this)">
+      ⚙️<br>Settings
+    </button>
+
+  </div>
+
+  <div class="main-layout">
+
+    <!-- LEFT -->
+    <div class="left-column">
+
+      <div class="card">
         <h2>FACTION OVERVIEW</h2>
+
         <p>FACTION: <span id="factionName">Loading...</span></p>
         <p>RANK: <span id="factionRank">Loading...</span></p>
         <p>RESPECT: <span id="factionRespect">Loading...</span></p>
@@ -43,94 +83,171 @@
         <p>CHAIN: <span id="chainValue">Loading...</span></p>
       </div>
 
-      <div class="panel">
+      <div class="card">
         <h2>WAR TIMER</h2>
-        <div class="timer" id="warTimer">Loading...</div>
-        <p id="warTimerLabel">DAYS HRS MINS SECS</p>
+
+        <div class="war-timer"
+          id="warTimer">
+          Loading...
+        </div>
+
+        <p>DAYS HRS MINS SECS</p>
       </div>
-    </aside>
 
-    <section class="content">
+    </div>
 
-      <div id="dashboard" class="tab-page active-page">
-        <div class="panel profile">
+    <!-- CENTER -->
+    <div class="center-column">
+
+      <div id="dashboard"
+        class="page active-page">
+
+        <div class="card profile-card">
+
           <h2>DASHBOARD</h2>
 
-          <img id="playerPfp" class="pfp" src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png">
+          <img
+            id="playerPfp"
+            class="pfp"
+            src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png"
+          >
 
-          <h3 id="playerName">Loading...</h3>
-          <p id="playerId">[Loading]</p>
-          <span id="playerRank">Loading...</span>
+          <h1 id="playerName">
+            Loading...
+          </h1>
 
-          <div class="stat-grid">
-            <div class="stat"><small>LEVEL</small><strong id="playerLevel">-</strong></div>
-            <div class="stat"><small>STATUS</small><strong id="playerStatus">-</strong></div>
-            <div class="stat"><small>ENERGY</small><strong id="energyValue">-</strong></div>
-            <div class="stat"><small>CHAIN</small><strong id="dashChain">-</strong></div>
-            <div class="stat"><small>FACTION</small><strong id="dashFaction">-</strong></div>
-            <div class="stat"><small>RESPECT</small><strong id="dashRespect">-</strong></div>
+          <p id="playerId">
+            [Loading]
+          </p>
+
+          <span class="rank-tag"
+            id="playerRank">
+            Loading...
+          </span>
+
+          <div class="stats-grid">
+
+            <div class="stat">
+              <small>LEVEL</small>
+              <strong id="playerLevel">-</strong>
+            </div>
+
+            <div class="stat">
+              <small>AGE</small>
+              <strong id="playerAge">-</strong>
+              <p id="ageDays"></p>
+            </div>
+
+            <div class="stat">
+              <small>LVL/DAY</small>
+              <strong id="levelDay">-</strong>
+            </div>
+
+            <div class="stat">
+              <small>FRENEMIES</small>
+              <strong id="frenemiesValue">+0 💀0</strong>
+            </div>
+
+            <div class="stat">
+              <small>HONOR</small>
+              <strong id="honorValue">-</strong>
+            </div>
+
+            <div class="stat">
+              <small>AWARDS</small>
+              <strong id="awardsValue">-</strong>
+            </div>
+
+            <div class="stat">
+              <small>KARMA</small>
+              <strong id="karmaValue">-</strong>
+            </div>
+
+            <div class="stat">
+              <small>FORUM</small>
+              <strong id="forumValue">-</strong>
+              <p>posts</p>
+            </div>
+
           </div>
+
         </div>
+
       </div>
 
-      <div id="members" class="tab-page panel">
-        <h2>MEMBERS</h2>
-        <div id="memberList">Loading...</div>
-      </div>
+    </div>
 
-      <div id="war" class="tab-page panel">
-        <h2>WAR TERMINAL</h2>
-        <p>WAR STATUS: <span id="warStatus2">Loading...</span></p>
-        <p>WAR START: <span id="warStart">Loading...</span></p>
-        <p>TIMER: <span id="warTimer2">Loading...</span></p>
-      </div>
+    <!-- RIGHT -->
+    <div class="right-column">
 
-      <div id="chain" class="tab-page panel">
-        <h2>CHAIN TRACKER</h2>
-        <p>CURRENT CHAIN: <span id="chainValue2">Loading...</span></p>
-      </div>
+      <div class="card">
 
-      <div id="territory" class="tab-page panel">
-        <h2>TERRITORY</h2>
-        <p>STATUS: <span id="territoryAlert2">Loading...</span></p>
-      </div>
-
-      <div id="hospital" class="tab-page panel">
-        <h2>HOSPITAL</h2>
-        <p>MEMBERS IN HOSPITAL: <span id="hospitalAlert2">Loading...</span></p>
-      </div>
-
-      <div id="settings" class="tab-page panel">
-        <h2>SETTINGS</h2>
-        <input id="apiKey" placeholder="Enter Torn API Key">
-        <button onclick="saveKey()">Save API Key</button>
-        <p id="status">No API key loaded.</p>
-      </div>
-
-    </section>
-
-    <aside>
-      <div class="panel">
         <h2>ALERTS</h2>
-        <p>[!] HOSPITAL: <span id="hospitalAlert">0</span></p>
-        <p>[!] YOUR ENERGY: <span id="energyAlert">Loading...</span></p>
-        <p>[!] CHAIN: <span id="chainAlert">Loading...</span></p>
-        <p>[!] TERRITORY: <span id="territoryAlert">Loading...</span></p>
+
+        <p>[!] HOSPITAL:
+          <span id="hospitalAlert">0</span>
+        </p>
+
+        <p>[!] YOUR ENERGY:
+          <span id="energyAlert">Loading...</span>
+        </p>
+
+        <p>[!] CHAIN:
+          <span id="chainAlert">Loading...</span>
+        </p>
+
+        <p>[!] TERRITORY:
+          <span id="territoryAlert">Loading...</span>
+        </p>
+
       </div>
 
-      <div class="panel">
+      <div class="card">
+
         <h2>ONLINE NOW</h2>
-        <div id="onlineMembers">Loading...</div>
-      </div>
-    </aside>
-  </main>
 
-  <footer>
+        <div id="onlineMembers">
+          Loading...
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- SETTINGS PAGE -->
+  <div id="settings"
+    class="page">
+
+    <div class="card">
+
+      <h2>SETTINGS</h2>
+
+      <input
+        id="apiKey"
+        placeholder="Enter Torn API Key"
+      >
+
+      <button onclick="saveKey()">
+        Save API Key
+      </button>
+
+      <p id="status">
+        Waiting for API key...
+      </p>
+
+    </div>
+
+  </div>
+
+  <div class="footer">
     > SYSTEM ONLINE AND OPERATIONAL
-  </footer>
+  </div>
 
 </div>
 
-<script src="app.js"></script>
+<script src="./app.js"></script>
+
 </body>
 </html>
