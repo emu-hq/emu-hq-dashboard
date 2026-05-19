@@ -4,21 +4,68 @@
   <title>EMU HQ Terminal</title>
   <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<div class="terminal">
-  <h1>EMU HQ WAR TERMINAL</h1>
+<div class="app">
 
-  <input id="apiKey" placeholder="Enter Torn API Key">
-  <button onclick="saveKey()">Save API Key</button>
-  <button onclick="loadFaction()">Load Faction</button>
+  <div class="top-bar">
+    <div class="tab active" onclick="showTab('dashboard')">🏠</div>
+    <div class="tab" onclick="showTab('members')">👥</div>
+    <div class="tab" onclick="showTab('war')">⚔️</div>
+    <div class="tab" onclick="showTab('chain')">⛓️</div>
+    <div class="tab" onclick="showTab('settings')">⚙️</div>
+  </div>
 
-  <div id="status"></div>
-  <div id="members"></div>
+  <h1 id="pageTitle">🏠 Dashboard</h1>
+
+  <section id="dashboard" class="page active-page">
+    <div class="profile-card">
+      <img src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png">
+      <h2>Pacca</h2>
+      <p>[3149820]</p>
+      <span>EMU HQ TERMINAL v1.1</span>
+    </div>
+
+    <div class="grid">
+      <div class="card"><small>LEVEL</small><strong>56</strong></div>
+      <div class="card"><small>STATUS</small><strong>Online</strong></div>
+      <div class="card"><small>WAR</small><strong>Ready</strong></div>
+      <div class="card"><small>CHAIN</small><strong>Active</strong></div>
+    </div>
+  </section>
+
+  <section id="members" class="page">
+    <div class="card big">
+      <h2>Members</h2>
+      <p>Faction member list will go here.</p>
+    </div>
+  </section>
+
+  <section id="war" class="page">
+    <div class="card big">
+      <h2>War Terminal</h2>
+      <p>Targets, hospital timers and attack calls will go here.</p>
+    </div>
+  </section>
+
+  <section id="chain" class="page">
+    <div class="card big">
+      <h2>Chain Tracker</h2>
+      <p>Chain timer, hits and respect tracking will go here.</p>
+    </div>
+  </section>
+
+  <section id="settings" class="page">
+    <div class="card big">
+      <h2>Settings</h2>
+      <input id="apiKey" placeholder="Enter Torn API Key">
+      <button onclick="saveKey()">Save API Key</button>
+      <div id="status"></div>
+    </div>
+  </section>
+
 </div>
 
 <script src="app.js"></script>
-
 </body>
 </html>
