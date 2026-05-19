@@ -1,24 +1,15 @@
+// app.js
 function showTab(tabName) {
-  document.querySelectorAll(".page").forEach(page => {
+  document.querySelectorAll(".tab-page").forEach(page => {
     page.classList.remove("active-page");
   });
 
-  document.querySelectorAll(".tab").forEach(tab => {
-    tab.classList.remove("active");
+  document.querySelectorAll("nav button").forEach(button => {
+    button.classList.remove("active");
   });
 
   document.getElementById(tabName).classList.add("active-page");
   event.currentTarget.classList.add("active");
-
-  const titles = {
-    dashboard: "🏠 Dashboard",
-    members: "👥 Members",
-    war: "⚔️ War Terminal",
-    chain: "⛓️ Chain Tracker",
-    settings: "⚙️ Settings"
-  };
-
-  document.getElementById("pageTitle").innerText = titles[tabName];
 }
 
 function saveKey() {
@@ -26,3 +17,12 @@ function saveKey() {
   localStorage.setItem("tornApiKey", key);
   document.getElementById("status").innerText = "API key saved locally.";
 }
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById("clock").innerText = now.toLocaleTimeString();
+  document.getElementById("date").innerText = now.toLocaleDateString();
+}
+
+updateClock();
+setInterval(updateClock, 1000);
