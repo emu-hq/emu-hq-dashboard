@@ -467,6 +467,15 @@ select{
   font-weight:normal;
 }
 
+.sortable-th{
+  cursor:pointer;
+}
+
+.sortable-th:hover{
+  color:#00ff66;
+  text-shadow:0 0 8px rgba(0,255,102,0.65);
+}
+
 .data-table tr:last-child td{
   border-bottom:none;
 }
