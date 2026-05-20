@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260520-9" />
+  <link rel="stylesheet" href="style.css?v=20260520-10" />
 </head>
 
 <body>
@@ -53,7 +53,6 @@
             <button class="link-btn" onclick="showPage('playerView', this)">&gt; PLAYER VIEW</button>
             <button class="link-btn" onclick="showPage('factionScout', this)">&gt; FACTION SCOUT</button>
             <button class="link-btn" onclick="showPage('activeWars', this)">&gt; ACTIVE WARS</button>
-            <button class="link-btn" onclick="showPage('ffTools', this)">&gt; SCOUTING TOOLS</button>
             <button class="link-btn" onclick="showPage('jobpoints', this)">&gt; JOB POINTS</button>
             <button class="link-btn" onclick="showPage('settings', this)">&gt; SETTINGS</button>
           </div>
@@ -134,9 +133,6 @@
 
               <div class="tool-actions">
                 <button class="save-btn" onclick="refreshWarTools()">REFRESH MEMBERS</button>
-                <button class="save-btn" data-war-sort="status" onclick="setWarSortMode('status')">STATUS FIRST</button>
-                <button class="save-btn" data-war-sort="level" onclick="setWarSortMode('level')">HIGH LEVEL</button>
-                <button class="save-btn" data-war-sort="stats" onclick="setWarSortMode('stats')">HIGH STATS</button>
                 <button class="save-btn" onclick="showPage('chain', document.querySelectorAll('.link-btn')[3])">CHAIN</button>
               </div>
 
@@ -146,9 +142,9 @@
                   <thead>
                     <tr>
                       <th>Name</th>
-                      <th>Lvl</th>
-                      <th>Stats</th>
-                      <th>Desc</th>
+                      <th class="sortable-th" onclick="setWarSortMode('level')">Lvl</th>
+                      <th class="sortable-th" onclick="setWarSortMode('stats')">Stats</th>
+                      <th class="sortable-th" onclick="setWarSortMode('status')">Desc</th>
                       <th>ETA</th>
                       <th>Hit</th>
                     </tr>
@@ -411,24 +407,6 @@
           </section>
         </div>
 
-        <div id="ffTools" class="page">
-          <section class="panel">
-            <div class="panel-title">SCOUTING TOOLS</div>
-            <div class="panel-content">
-              <p class="scan-line">NATIVE EMU INTEL CHECKS</p>
-              <div class="tool-actions">
-                <button class="save-btn" onclick="checkEmuBsKey()">CHECK EMUBS KEY</button>
-                <button class="save-btn" onclick="loadFFAnnouncements()">LOAD BULLETINS</button>
-                <span id="ffToolsStatus" class="muted">Ready.</span>
-              </div>
-              <div id="ffKeySummary" class="tool-cards"></div>
-
-              <div class="sub-title">BULLETINS</div>
-              <div id="ffAnnouncements" class="intel-list">No announcements loaded.</div>
-            </div>
-          </section>
-        </div>
-
         <div id="settings" class="page active-page">
           <section class="panel">
             <div class="panel-title">SETTINGS</div>
@@ -469,6 +447,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260520-9"></script>
+  <script src="app.js?v=20260520-10"></script>
 </body>
 </html>
