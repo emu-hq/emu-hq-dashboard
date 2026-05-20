@@ -4,12 +4,14 @@ const EMUBS_API = ["https://", "ff", "scouter", ".com", "/api/v1"].join("");
 const DEFAULT_TORN_API_KEY = "";
 const BSP_API_KEY = "FgRPhLYolny6uS4P";
 const BSP_API = ["http://", "www.lol-manager.com", "/api"].join("");
+const BSP_CORS_RELAY = "https://api.codetabs.com/v1/proxy/?quest=";
 const BSP_SCRIPT_VERSION = "9.4.3";
 const BSP_CACHE_DAYS = 5;
-const BUILD_VERSION = "2026-05-20-native-tools-9";
+const BUILD_VERSION = "2026-05-20-native-tools-10";
 const POLL_INTERVAL_MS = 30000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
+const BSP_CACHE_PREFIX = "bspPrediction.v2.";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const TRAVEL_TIMES = {
   "mexico": { name: "Mexico", standard: 26, airstrip: 18 },
@@ -1324,28 +1326,38 @@ async function getBSPData(playerId, forceRefresh) {
 
 async function fetchBSPPrediction(playerId) {
   const url = `${BSP_API}/battlestats/${encodeURIComponent(BSP_API_KEY)}/${encodeURIComponent(playerId)}/${BSP_SCRIPT_VERSION}`;
+  return fetchBSPJson(url);
+}
 
-  const response = await fetch(url, { cache: "no-store" });
-  const data = await response.json();
+async function fetchBSPJson(url) {
+  const attempts = [
+    url,
+    `${BSP_CORS_RELAY}${encodeURIComponent(url)}`
+  ];
+  let lastError = null;
 
-  if (!response.ok) {
-    throw new Error(data?.error || data?.message || `Private predictor HTTP ${response.status}`);
+  for (const attempt of attempts) {
+    try {
+      const response = await fetch(attempt, { cache: "no-store" });
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : null;
+
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || `BSP HTTP ${response.status}`);
+      }
+
+      return data;
+    } catch (err) {
+      lastError = err;
+    }
   }
 
-  return data;
+  throw new Error(`BSP unavailable: ${lastError?.message || "request blocked"}`);
 }
 
 async function fetchBSPUserStatus() {
   const url = `${BSP_API}/battlestats/user/${encodeURIComponent(BSP_API_KEY)}/${BSP_SCRIPT_VERSION}`;
-
-  const response = await fetch(url, { cache: "no-store" });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.error || data?.message || `Private predictor HTTP ${response.status}`);
-  }
-
-  return data;
+  return fetchBSPJson(url);
 }
 
 function normalizeBSPPrediction(data, playerId) {
@@ -1385,26 +1397,30 @@ function getBSPResultLabel(result) {
 }
 
 function getCachedBSPPrediction(playerId) {
-  const raw = localStorage.getItem(`bspPrediction.${playerId}`);
+  const raw = localStorage.getItem(`${BSP_CACHE_PREFIX}${playerId}`);
   if (!raw) return null;
 
   try {
     const prediction = JSON.parse(raw);
     const maxAge = BSP_CACHE_DAYS * 24 * 60 * 60 * 1000;
     if (!prediction.fetched_at || Date.now() - prediction.fetched_at > maxAge) {
-      localStorage.removeItem(`bspPrediction.${playerId}`);
+      localStorage.removeItem(`${BSP_CACHE_PREFIX}${playerId}`);
+      return null;
+    }
+    if (!prediction.tbs && !prediction.score) {
+      localStorage.removeItem(`${BSP_CACHE_PREFIX}${playerId}`);
       return null;
     }
     return prediction;
   } catch (err) {
-    localStorage.removeItem(`bspPrediction.${playerId}`);
+    localStorage.removeItem(`${BSP_CACHE_PREFIX}${playerId}`);
     return null;
   }
 }
 
 function setCachedBSPPrediction(playerId, prediction) {
   try {
-    localStorage.setItem(`bspPrediction.${playerId}`, JSON.stringify(prediction));
+    localStorage.setItem(`${BSP_CACHE_PREFIX}${playerId}`, JSON.stringify(prediction));
   } catch (err) {
     console.warn("BSP cache write failed", err);
   }
@@ -2216,13 +2232,13 @@ async function enrichMembersWithBSP(members, limit) {
 }
 
 function formatMemberEstimate(member) {
-  return member.emubs?.bs_estimate_human ||
-    member.bsp?.tbs_human ||
+  return member.bsp?.tbs_human ||
+    member.emubs?.bs_estimate_human ||
     compactNumber(member.emubs?.bs_estimate || member.emubs?.bss_public);
 }
 
 function getMemberEstimateValue(member) {
-  return parseNumberish(member.emubs?.bs_estimate || member.bsp?.tbs || member.emubs?.bss_public);
+  return parseNumberish(member.bsp?.tbs || member.emubs?.bs_estimate || member.emubs?.bss_public);
 }
 
 function renderFactionScoutSummary(factionId, faction, members) {
@@ -2431,6 +2447,7 @@ function renderLiveChains(data) {
   const rawChains = data.warfare?.chain || data.warfare?.chains || data.chains || data.chain || [];
   const chains = normalizeArray(Array.isArray(rawChains) ? rawChains : [rawChains])
     .filter(chain => chain && typeof chain === "object")
+    .sort((a, b) => getChainValue(b) - getChainValue(a))
     .slice(0, 25);
 
   setHtml(
@@ -2443,7 +2460,7 @@ function renderLiveChains(data) {
         return `
           <tr>
             <td>${faction ? factionProfileLink(faction) : escapeHtml(chain.name || "Our faction")}</td>
-            <td>${escapeHtml(formatNumber(chain.current || chain.chain || chain.count || 0))}</td>
+            <td>${escapeHtml(formatNumber(getChainValue(chain)))}</td>
             <td>${chain.timeout || chain.cooldown || chain.end ? etaHtml(chain.timeout || chain.cooldown || chain.end, "warning") : `<span class="muted">-</span>`}</td>
             <td>${escapeHtml(formatDateTime(chain.start || chain.started || chain.timestamp))}</td>
             <td><span class="status-pill status-okay">${escapeHtml(chain.state || chain.status || "Live")}</span></td>
@@ -2452,6 +2469,10 @@ function renderLiveChains(data) {
       }).join("")
       : emptyTableRow("No live chains returned for this key.", 5)
   );
+}
+
+function getChainValue(chain) {
+  return Number(chain?.current || chain?.chain || chain?.count || 0);
 }
 
 function normalizeWarFactions(rawFactions) {
@@ -2626,38 +2647,4 @@ function init() {
 
   if (!hasTornApiKey()) {
     showPage("settings");
-    setText("status", "Enter Torn API key to unlock terminal.");
-  } else {
-    showPage("dashboard", document.querySelector(".link-btn"));
-  }
-
-  loadAllData();
-
-  setInterval(updateClock, 1000);
-  setInterval(updateCountdowns, 1000);
-  setInterval(loadAllData, POLL_INTERVAL_MS);
-}
-
-Object.assign(window, {
-  showPage,
-  saveKey,
-  setTargetPreset,
-  setWarSortMode,
-  searchTargets,
-  copyTargetIds,
-  searchRecruiter,
-  copyRecruitIds,
-  loadPlayerView,
-  loadSelfPlayerView,
-  openPlayerProfile,
-  loadFactionScout,
-  loadCurrentFactionScout,
-  loadEnemyFactionScout,
-  openFactionProfile,
-  loadActiveWars,
-  openExternalTool,
-  refreshWarTools
-});
-
-init();
-
+    setText("status", "Enter Torn API key to unl
