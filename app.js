@@ -36,6 +36,8 @@ let activePlayerId = null;
 let latestFactionMembers = [];
 let latestEnemyMembers = [];
 let latestTargetResults = [];
+let latestRecruiterResults = [];
+let latestFactionChain = null;
 let targetPreset = "custom";
 let warSortMode = localStorage.getItem("warSortMode") || "status";
 let ownBattleStats = null;
@@ -332,6 +334,7 @@ function renderNoKeyState() {
   setHtml("recentAttacks", emptyMessage("Enter API key in Settings."));
   setHtml("chainPanel", emptyMessage("Enter API key in Settings."));
   setHtml("targetResults", emptyTableRow("Enter API key in Settings.", 6));
+  setHtml("recruiterResults", emptyTableRow("Enter API key in Settings.", 6));
   setHtml("playerDashboardCard", "");
   setHtml("playerViewSummary", "");
   setHtml("playerRelationPanel", emptyMessage("Enter API key in Settings."));
@@ -341,8 +344,8 @@ function renderNoKeyState() {
   setHtml("factionActivitySummary", "");
   setHtml("factionScoutMembers", emptyTableRow("Enter API key in Settings.", 7));
   setHtml("activeWarsTable", emptyTableRow("Enter API key in Settings.", 6));
-  setHtml("ffKeySummary", "");
-  setHtml("ffAnnouncements", emptyMessage("Enter API key in Settings."));
+  setHtml("activeTerritoryTable", emptyTableRow("Enter API key in Settings.", 5));
+  setHtml("liveChainsTable", emptyTableRow("Enter API key in Settings.", 5));
 }
 
 function loadUser(user, honorsData) {
@@ -429,6 +432,7 @@ function loadFaction(data) {
   const factionId = faction.id || faction.ID || data.ID || data.faction_id || activeFactionId;
 
   activeFactionId = factionId || activeFactionId;
+  latestFactionChain = chain && typeof chain === "object" ? chain : null;
 
   setText("factionName", faction.name ?? "-");
   setText("factionRank", formatFactionRank(faction));
@@ -825,7 +829,7 @@ function profileActionLink(member, label) {
 function attackActionLink(member) {
   const id = getPlayerId(member);
   if (!id || String(id).startsWith("stealth")) return `<span class="muted">-</span>`;
-  return `<a class="hit-link danger-hit" href="${attackUrl(id)}" target="_blank" rel="noopener">HIT</a>`;
+  return `<a class="hit-link danger-hit" href="${attackUrl(id)}" target="_blank" rel="noopener">ATTACK</a>`;
 }
 
 function etaHtml(until, className) {
@@ -1002,11 +1006,29 @@ async function enrichEnemyStats(members) {
 function renderWarTargetTable(members) {
   latestEnemyMembers = members;
   const sorted = sortEnemyTargets(members);
+  const groups = [
+    ["hospital", "HOSPITAL"],
+    ["okay", "OKAY / ATTACKABLE"],
+    ["travel", "FLYING / OVERSEAS"],
+    ["other", "OTHER / OFFLINE"]
+  ];
+
+  const rows = groups
+    .map(([key, label]) => {
+      const groupMembers = sorted.filter(member => getWarTargetGroup(member) === key);
+      if (!groupMembers.length) return "";
+
+      return `
+        <tr class="group-row"><td colspan="6">${label} (${groupMembers.length})</td></tr>
+        ${groupMembers.map(member => warTargetRow(member)).join("")}
+      `;
+    })
+    .join("");
 
   setHtml(
     "warTargetsTable",
-    sorted.length
-      ? sorted.map(member => warTargetRow(member)).join("")
+    rows
+      ? rows
       : emptyTableRow("No enemy members loaded.", 6)
   );
 }
@@ -1054,6 +1076,17 @@ function targetStatusRank(member) {
   if (travel) return 4;
   if (isOnline(member)) return 5;
   return 6;
+}
+
+function getWarTargetGroup(member) {
+  if (isHospital(member)) return "hospital";
+  if (isTravelling(member)) return "travel";
+
+  const status = getMemberStatus(member);
+  const state = String(status.state || status.description || "").toLowerCase();
+
+  if (state.includes("okay") || isOnline(member)) return "okay";
+  return "other";
 }
 
 function warTargetRow(member) {
@@ -1559,20 +1592,29 @@ function targetRow(target) {
   const name = target.name || (id ? `Player ${id}` : "Unknown");
   const stats = target.bsp?.tbs_human || target.bs_estimate_human || compactNumber(target.bs_estimate || target.bss_public);
   const fairFight = target.bsp?.fair_fight ?? target.fair_fight ?? target.ff ?? "-";
-  const lastAction = target.last_action
-    ? formatDateTime(target.last_action)
-    : target.last_action_relative || "-";
+  const lastAction = formatTargetLastAction(target);
 
   return `
     <tr>
       <td>${id ? `<a href="${profileUrl(id)}" target="_blank" rel="noopener">${escapeHtml(name)} [${escapeHtml(id)}]</a>` : escapeHtml(name)}</td>
-      <td>${id ? `<a class="hit-link danger-hit" href="${attackUrl(id)}" target="_blank" rel="noopener">HIT</a>` : `<span class="muted">-</span>`}</td>
+      <td>${id ? `<a class="hit-link danger-hit" href="${attackUrl(id)}" target="_blank" rel="noopener">ATTACK</a>` : `<span class="muted">-</span>`}</td>
       <td>${escapeHtml(target.level ?? "-")}</td>
       <td>${escapeHtml(fairFight)}</td>
       <td>${stats !== "-" ? `<span class="stat-pill">${escapeHtml(stats)}</span>` : `<span class="muted">-</span>`}</td>
       <td>${escapeHtml(lastAction)}</td>
     </tr>
   `;
+}
+
+function formatTargetLastAction(target) {
+  const raw = target.last_action || target.lastAction;
+
+  if (typeof raw === "object" && raw !== null) {
+    return raw.relative || raw.status || (raw.timestamp ? formatDateTime(raw.timestamp) : "-");
+  }
+
+  if (Number(raw) > 1000000000) return formatDateTime(raw);
+  return target.last_action_relative || target.lastActionRelative || raw || "-";
 }
 
 async function copyTargetIds() {
@@ -1600,6 +1642,165 @@ async function copyTargetIds() {
     setText("targetStatus", "Target IDs copied.");
   } catch (err) {
     setText("targetStatus", "Copy failed. Select the IDs manually.");
+  }
+}
+
+async function searchRecruiter() {
+  if (!apiKey) {
+    setText("recruiterStatus", "Enter Torn API key in Settings first.");
+    return;
+  }
+
+  setText("recruiterStatus", "Searching factionless players...");
+
+  try {
+    const recruits = await loadRecruiterCandidates();
+    latestRecruiterResults = recruits;
+    renderRecruiterResults(recruits);
+    setText("recruiterStatus", `${recruits.length} recruit${recruits.length === 1 ? "" : "s"} loaded.`);
+  } catch (err) {
+    latestRecruiterResults = [];
+    setHtml("recruiterResults", emptyTableRow(err.message || "Recruit search failed.", 6));
+    setText("recruiterStatus", err.message || "Recruit search failed.");
+  }
+}
+
+async function loadRecruiterCandidates() {
+  const limit = clampNumber(inputValue("recruitLimit", 20), 1, 50);
+  const minLevel = clampNumber(inputValue("recruitMinLevel", 1), 1, 100);
+  const maxLevel = clampNumber(inputValue("recruitMaxLevel", 100), 1, 100);
+  const [minActive, maxActive] = parseRange(document.getElementById("recruitActivity")?.value || "0-900");
+  const params = {
+    key: apiKey,
+    limit: Math.min(50, limit * 3),
+    minlevel: minLevel,
+    maxlevel: maxLevel,
+    factionless: "1",
+    inactiveonly: "0",
+    activity_min: minActive,
+    activity_max: maxActive
+  };
+
+  let targets = [];
+
+  try {
+    const data = await getEmuBsData("/get-targets", params);
+    targets = normalizeTargetResults(data);
+  } catch (err) {
+    targets = latestTargetResults.length ? latestTargetResults : buildLocalTargetFallback(limit);
+  }
+
+  const filtered = targets
+    .filter(target => Number(target.level || 0) >= minLevel && Number(target.level || 0) <= maxLevel)
+    .filter(isFactionlessCandidate)
+    .filter(target => {
+      const age = getLastActionAgeSeconds(target);
+      return age === null || (age >= minActive && age <= maxActive);
+    })
+    .slice(0, limit);
+
+  const enriched = await enrichTargetsWithBSP(filtered);
+  return enriched;
+}
+
+function parseRange(value) {
+  const [min, max] = String(value || "").split("-").map(part => Number(part));
+  return [Number.isFinite(min) ? min : 0, Number.isFinite(max) ? max : 900];
+}
+
+function isFactionlessCandidate(target) {
+  const faction = target.faction || target.faction_id || target.factionId || target.faction_name || target.factionName;
+  if (faction === undefined || faction === null || faction === "" || faction === 0 || faction === "0") return true;
+  if (typeof faction === "object") return !(faction.id || faction.ID || faction.name);
+  return String(faction).toLowerCase() === "none";
+}
+
+function getLastActionAgeSeconds(target) {
+  const raw = target.last_action || target.lastAction || target.last_action_timestamp || target.lastActionTimestamp;
+
+  if (typeof raw === "object" && raw !== null) {
+    if (raw.timestamp) return Math.max(0, Math.floor(Date.now() / 1000) - Number(raw.timestamp));
+    if (raw.relative) return parseRelativeSeconds(raw.relative);
+    if (raw.status && String(raw.status).toLowerCase() === "online") return 0;
+  }
+
+  if (Number(raw) > 1000000000) {
+    return Math.max(0, Math.floor(Date.now() / 1000) - Number(raw));
+  }
+
+  return parseRelativeSeconds(target.last_action_relative || target.lastActionRelative || target.last_seen || target.lastSeen);
+}
+
+function parseRelativeSeconds(value) {
+  const text = String(value || "").toLowerCase();
+  if (!text || text === "-") return null;
+  if (text.includes("online") || text.includes("now") || text.includes("just")) return 0;
+
+  const match = /(\d+(?:\.\d+)?)\s*(second|sec|minute|min|hour|hr|day)/i.exec(text);
+  if (!match) return null;
+
+  const amount = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  if (unit.startsWith("sec")) return amount;
+  if (unit.startsWith("min")) return amount * 60;
+  if (unit.startsWith("hour") || unit.startsWith("hr")) return amount * 3600;
+  if (unit.startsWith("day")) return amount * 86400;
+  return null;
+}
+
+function renderRecruiterResults(recruits) {
+  setHtml(
+    "recruiterResults",
+    recruits.length
+      ? recruits.map(recruitRow).join("")
+      : emptyTableRow("No factionless players found in that activity range.", 6)
+  );
+}
+
+function recruitRow(target) {
+  const id = target.player_id || target.id || target.target;
+  const name = target.name || (id ? `Player ${id}` : "Unknown");
+  const stats = target.bsp?.tbs_human || target.bs_estimate_human || compactNumber(target.bs_estimate || target.bss_public);
+  const status = target.status?.description || target.status || target.last_action?.status || "Factionless";
+  const lastAction = formatTargetLastAction(target);
+
+  return `
+    <tr>
+      <td>${id ? `<a href="${profileUrl(id)}" target="_blank" rel="noopener">${escapeHtml(name)} [${escapeHtml(id)}]</a>` : escapeHtml(name)}</td>
+      <td>${escapeHtml(target.level ?? "-")}</td>
+      <td>${stats !== "-" ? `<span class="stat-pill">${escapeHtml(stats)}</span>` : `<span class="muted">-</span>`}</td>
+      <td>${escapeHtml(lastAction)}</td>
+      <td><span class="status-pill status-okay">${escapeHtml(status)}</span></td>
+      <td>${id ? `<a class="hit-link" href="${profileUrl(id)}" target="_blank" rel="noopener">OPEN</a>` : `<span class="muted">-</span>`}</td>
+    </tr>
+  `;
+}
+
+async function copyRecruitIds() {
+  const ids = latestRecruiterResults
+    .map(target => target.player_id || target.id || target.target)
+    .filter(Boolean)
+    .join(",");
+
+  if (!ids) {
+    setText("recruiterStatus", "No recruit IDs to copy.");
+    return;
+  }
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(ids);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = ids;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+    setText("recruiterStatus", "Recruit IDs copied.");
+  } catch (err) {
+    setText("recruiterStatus", "Copy failed. Select the IDs manually.");
   }
 }
 
@@ -1633,7 +1834,8 @@ async function loadPlayerView() {
     loadFactionAttacksData()
   ]);
 
-  const profile = profileResult.status === "fulfilled" ? normalizePlayerProfile(profileResult.value, playerId) : null;
+  let profile = profileResult.status === "fulfilled" ? normalizePlayerProfile(profileResult.value, playerId) : null;
+  profile = await enrichPlayerFactionName(profile);
   const stats = statsResult.status === "fulfilled" ? normalizeTargetResults(statsResult.value)[0] : null;
   const history = historyResult.status === "fulfilled" ? historyResult.value : null;
   const flights = flightsResult.status === "fulfilled" ? flightsResult.value : null;
@@ -1689,6 +1891,22 @@ async function loadPublicPlayerProfile(playerId) {
   }
 }
 
+async function enrichPlayerFactionName(profile) {
+  if (!profile?.factionId) return profile;
+  if (profile.faction && profile.faction !== "N/A" && !/^Faction\s+\d+$/i.test(profile.faction)) return profile;
+
+  try {
+    const data = await getData(tornUrl(2, `/faction/${encodeURIComponent(profile.factionId)}/basic`, { key: apiKey }));
+    const faction = data.basic || data.faction || data;
+    return {
+      ...profile,
+      faction: faction.name || profile.faction
+    };
+  } catch (err) {
+    return profile;
+  }
+}
+
 function normalizePlayerProfile(data, playerId) {
   const profile = data.profile || data.basic || data;
   const faction = profile.faction && typeof profile.faction === "object" ? profile.faction : {};
@@ -1719,7 +1937,7 @@ function normalizePlayerProfile(data, playerId) {
 }
 
 function renderPlayerDashboardCard(playerId, profile, stats, bsp, flights) {
-  const estimate = stats?.bs_estimate_human || bsp?.tbs_human || compactNumber(stats?.bs_estimate || stats?.bss_public);
+  const estimate = bsp?.tbs_human || stats?.bs_estimate_human || compactNumber(stats?.bs_estimate || stats?.bss_public);
   const profileUrlHtml = `<a href="${profileUrl(playerId)}" target="_blank" rel="noopener">${escapeHtml(profile?.name || `Player ${playerId}`)} [${escapeHtml(playerId)}]</a>`;
   const factionLabel = profile?.faction && profile.faction !== "N/A"
     ? profile.faction
@@ -1746,7 +1964,7 @@ function renderPlayerDashboardCard(playerId, profile, stats, bsp, flights) {
           <div class="stat"><span>FACTION</span><strong>${factionText}</strong></div>
           <div class="stat"><span>STATUS</span><strong>${escapeHtml(profile?.status || "-")}</strong></div>
           <div class="stat"><span>LAST ACTION</span><strong>${escapeHtml(profile?.lastAction || "-")}</strong></div>
-          <div class="stat"><span>FAIR FIGHT</span><strong>${escapeHtml(stats?.fair_fight ?? bsp?.fair_fight ?? "-")}</strong></div>
+          <div class="stat"><span>FAIR FIGHT</span><strong>${escapeHtml(bsp?.fair_fight ?? stats?.fair_fight ?? "-")}</strong></div>
           <div class="stat"><span>BS ESTIMATE</span><strong>${escapeHtml(estimate)}</strong></div>
           <div class="stat"><span>BSS PUBLIC</span><strong>${escapeHtml(formatNumber(stats?.bss_public))}</strong></div>
           <div class="stat"><span>AWARDS</span><strong>${escapeHtml(profile?.awards ?? "-")}</strong></div>
@@ -1760,7 +1978,7 @@ function renderPlayerDashboardCard(playerId, profile, stats, bsp, flights) {
 }
 
 function renderPlayerViewSummary(playerId, profile, stats, bsp, flightsResult) {
-  const latestEstimate = stats?.bs_estimate_human || bsp?.tbs_human || compactNumber(stats?.bs_estimate || stats?.bss_public);
+  const latestEstimate = bsp?.tbs_human || stats?.bs_estimate_human || compactNumber(stats?.bs_estimate || stats?.bss_public);
   const factionLabel = profile?.faction && profile.faction !== "N/A"
     ? profile.faction
     : profile?.factionId ? `Faction ${profile.factionId}` : "N/A";
@@ -1768,7 +1986,7 @@ function renderPlayerViewSummary(playerId, profile, stats, bsp, flightsResult) {
     ["PLAYER", `${profile?.name || `Player ${playerId}`} [${playerId}]`],
     ["LEVEL", profile?.level ?? "-"],
     ["FACTION", factionLabel],
-    ["FAIR FIGHT", stats?.fair_fight ?? "-"],
+    ["FAIR FIGHT", bsp?.fair_fight ?? stats?.fair_fight ?? "-"],
     ["LATEST ESTIMATE", latestEstimate],
     ["BSS PUBLIC", formatNumber(stats?.bss_public)],
     ["FALLBACK ESTIMATE", bsp?.tbs_human || "-"],
@@ -1789,7 +2007,7 @@ function renderPlayerRelations(playerId, attacks) {
 
   const rows = related.map(attack => {
     const theyAttacked = String(attack.attacker.id) === String(playerId);
-    const label = theyAttacked ? "THEY HIT" : "WE HIT";
+    const label = theyAttacked ? "THEY ATTACKED" : "WE ATTACKED";
     const other = theyAttacked ? attack.defender : attack.attacker;
     return `
       <div class="intel-row">
@@ -2092,12 +2310,13 @@ async function loadActiveWars() {
     renderTerritoryAssaults(warfareResult.value);
     renderLiveChains(warfareResult.value);
   } else {
-    setHtml("activeTerritoryTable", emptyTableRow(warfareResult.reason.message || "Territory assaults unavailable.", 5));
-    setHtml("liveChainsTable", emptyTableRow(warfareResult.reason.message || "Live chains unavailable.", 5));
+    const message = formatWarfareLimitMessage(warfareResult.reason);
+    setHtml("activeTerritoryTable", emptyTableRow(message, 5));
+    renderLiveChains({ chain: latestFactionChain, fallbackName: "EMU HQ" });
   }
 
   const warningCount = [warsResult, warfareResult].filter(result => result.status === "rejected").length;
-  setText("activeWarsStatus", warningCount ? "Loaded with limits." : "Warfare loaded.");
+  setText("activeWarsStatus", warningCount ? "Loaded with dashboard fallback where possible." : "Warfare loaded.");
 }
 
 async function loadRankedWarsData() {
@@ -2116,6 +2335,14 @@ function loadFactionWarfareData() {
     selections: "warfare,territorywars,chains,chain",
     key: apiKey
   }));
+}
+
+function formatWarfareLimitMessage(reason) {
+  const text = String(reason?.message || reason || "Warfare data unavailable.");
+  if (/access|permission|key|level|scope/i.test(text)) {
+    return "This key cannot read live territory assaults. Ranked wars and dashboard chain fallback are still shown.";
+  }
+  return text;
 }
 
 function normalizePublicRankedWars(data) {
@@ -2190,7 +2417,7 @@ function renderLiveChains(data) {
       ? chains.map(chain => {
         const faction = chain.faction || chain.faction_id || chain.factionId
           ? { id: chain.faction?.id || chain.faction_id || chain.factionId, name: chain.faction?.name || chain.faction_name || chain.name }
-          : null;
+          : activeFactionId ? { id: activeFactionId, name: data.fallbackName || "Our faction" } : null;
         return `
           <tr>
             <td>${faction ? factionProfileLink(faction) : escapeHtml(chain.name || "Our faction")}</td>
@@ -2396,6 +2623,8 @@ Object.assign(window, {
   setWarSortMode,
   searchTargets,
   copyTargetIds,
+  searchRecruiter,
+  copyRecruitIds,
   loadPlayerView,
   loadSelfPlayerView,
   openPlayerProfile,
