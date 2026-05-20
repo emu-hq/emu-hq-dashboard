@@ -1,13 +1,12 @@
 const TORN_API_V1 = "https://api.torn.com";
 const TORN_API_V2 = "https://api.torn.com/v2";
 const EMUBS_API = ["https://", "ff", "scouter", ".com", "/api/v1"].join("");
-const DEFAULT_TORN_API_KEY = "a4WFmXA3zm8BEYub";
-const FULL_ACCESS_TORN_API_KEY = "f4zYoNkYoxG8Qn9I";
+const DEFAULT_TORN_API_KEY = "";
 const BSP_API_KEY = "FgRPhLYolny6uS4P";
 const BSP_API = ["http://", "www.lol-manager.com", "/api"].join("");
 const BSP_SCRIPT_VERSION = "9.4.3";
 const BSP_CACHE_DAYS = 5;
-const BUILD_VERSION = "2026-05-20-native-tools-8";
+const BUILD_VERSION = "2026-05-20-native-tools-9";
 const POLL_INTERVAL_MS = 30000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
@@ -45,7 +44,7 @@ let ownBattleStats = null;
 let memberStatusCache = loadMemberStatusCache();
 
 function getTornApiKey() {
-  return FULL_ACCESS_TORN_API_KEY || apiKey;
+  return apiKey;
 }
 
 function hasTornApiKey() {
