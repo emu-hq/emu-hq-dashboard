@@ -1,10 +1,10 @@
-  <!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260520-10" />
+  <link rel="stylesheet" href="style.css?v=20260520-13" />
 </head>
 
 <body>
@@ -44,12 +44,12 @@
           <div class="panel-title">QUICK LINKS</div>
           <div class="panel-content links">
             <button class="link-btn" onclick="showPage('dashboard', this)">&gt; DASHBOARD</button>
-            <button class="link-btn" onclick="showPage('members', this)">&gt; MEMBERS</button>
+            <button class="link-btn" onclick="showPage('members', this)">&gt; FACTION MEMBERS</button>
             <button class="link-btn" onclick="showPage('war', this)">&gt; WAR</button>
             <button class="link-btn" onclick="showPage('chain', this)">&gt; CHAIN</button>
             <button class="link-btn" onclick="showPage('territory', this)">&gt; TERRITORY</button>
-            <button class="link-btn" onclick="showPage('hospital', this)">&gt; HOSPITAL</button>
             <button class="link-btn" onclick="showPage('targets', this)">&gt; TARGET FINDER</button>
+            <button class="link-btn" onclick="showPage('recruiter', this)">&gt; FACTION RECRUITER</button>
             <button class="link-btn" onclick="showPage('playerView', this)">&gt; PLAYER VIEW</button>
             <button class="link-btn" onclick="showPage('factionScout', this)">&gt; FACTION SCOUT</button>
             <button class="link-btn" onclick="showPage('activeWars', this)">&gt; ACTIVE WARS</button>
@@ -119,8 +119,33 @@
 
         <div id="members" class="page">
           <section class="panel">
-            <div class="panel-title">ONLINE MEMBERS</div>
-            <div class="panel-content intel-list" id="onlineMembers">Loading...</div>
+            <div class="panel-title">FACTION MEMBERS</div>
+            <div class="panel-content">
+              <div class="sub-title">ONLINE MEMBERS</div>
+              <div class="intel-list" id="onlineMembers">Loading...</div>
+
+              <div class="sub-title">FACTION HOSPITAL</div>
+              <p class="scan-line">SORTED BY RELEASE TIME</p>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Lvl</th>
+                      <th>Status</th>
+                      <th>Reason</th>
+                      <th>ETA</th>
+                      <th>Open</th>
+                    </tr>
+                  </thead>
+                  <tbody id="hospitalTable">
+                    <tr><td colspan="6">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="sub-title">HOSPITAL DETAILS</div>
+              <div class="intel-list" id="hospitalMembers">Loading...</div>
+            </div>
           </section>
         </div>
 
@@ -146,7 +171,7 @@
                       <th class="sortable-th" onclick="setWarSortMode('stats')">Stats</th>
                       <th class="sortable-th" onclick="setWarSortMode('status')">Desc</th>
                       <th>ETA</th>
-                      <th>Hit</th>
+                      <th>Attack</th>
                     </tr>
                   </thead>
                   <tbody id="warTargetsTable">
@@ -172,34 +197,6 @@
           <section class="panel">
             <div class="panel-title">TERRITORY</div>
             <div class="panel-content">Territory tracker coming soon.</div>
-          </section>
-        </div>
-
-        <div id="hospital" class="page">
-          <section class="panel">
-            <div class="panel-title">FACTION HOSPITAL</div>
-            <div class="panel-content">
-              <p class="scan-line">SORTED BY RELEASE TIME</p>
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Lvl</th>
-                      <th>Status</th>
-                      <th>Reason</th>
-                      <th>ETA</th>
-                      <th>Open</th>
-                    </tr>
-                  </thead>
-                  <tbody id="hospitalTable">
-                    <tr><td colspan="6">Loading...</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="sub-title">DETAILS</div>
-              <div class="intel-list" id="hospitalMembers">Loading...</div>
-            </div>
           </section>
         </div>
 
@@ -259,6 +256,50 @@
                   </thead>
                   <tbody id="targetResults">
                     <tr><td colspan="6">No targets loaded.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="recruiter" class="page">
+          <section class="panel">
+            <div class="panel-title">FACTION RECRUITER</div>
+            <div class="panel-content">
+              <p class="scan-line">FACTIONLESS PLAYER SEARCH</p>
+              <div class="tool-grid">
+                <label>MIN LEVEL<input id="recruitMinLevel" type="number" min="1" max="100" value="1" /></label>
+                <label>MAX LEVEL<input id="recruitMaxLevel" type="number" min="1" max="100" value="100" /></label>
+                <label>LIMIT<input id="recruitLimit" type="number" min="1" max="50" value="20" /></label>
+                <label>LAST ACTIVE
+                  <select id="recruitActivity">
+                    <option value="0-900">0-15 minutes</option>
+                    <option value="900-3600">15 minutes-1 hour</option>
+                    <option value="3600-21600">1-6 hours</option>
+                    <option value="21600-86400">6-24 hours</option>
+                  </select>
+                </label>
+              </div>
+              <div class="tool-actions">
+                <button type="button" class="save-btn" onclick="searchRecruiter()">SEARCH RECRUITS</button>
+                <button type="button" class="save-btn" onclick="copyRecruitIds()">COPY IDS</button>
+                <span id="recruiterStatus" class="muted">Ready.</span>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Lvl</th>
+                      <th>Stats</th>
+                      <th>Last Active</th>
+                      <th>Status</th>
+                      <th>Open</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recruiterResults">
+                    <tr><td colspan="6">No recruits loaded.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -365,7 +406,7 @@
               <div class="sub-title">MEMBERS</div>
               <div class="data-table-wrap">
                 <table class="data-table">
-                  <thead><tr><th>Player</th><th>Lvl</th><th>Status</th><th>Fair Fight</th><th>Stats</th><th>Last Action</th><th>Hit</th></tr></thead>
+                  <thead><tr><th>Player</th><th>Lvl</th><th>Status</th><th>Fair Fight</th><th>Stats</th><th>Last Action</th><th>Attack</th></tr></thead>
                   <tbody id="factionScoutMembers"><tr><td colspan="7">No faction loaded.</td></tr></tbody>
                 </table>
               </div>
@@ -447,6 +488,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260520-10"></script>
+  <script src="app.js?v=20260520-13"></script>
 </body>
 </html>
