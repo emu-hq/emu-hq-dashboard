@@ -1,23 +1,42 @@
 const TORN_API_V1 = "https://api.torn.com";
 const TORN_API_V2 = "https://api.torn.com/v2";
-const TORNSTATS_API = "https://www.tornstats.com/api/v2";
-const DEFAULT_TORNSTATS_API_KEY = "";
-const BUILD_VERSION = "2026-05-19-github-pages-1";
+const FFSCOUTER_API = "https://ffscouter.com/api/v1";
+const BSP_SCRIPT_VERSION = "9.4.3";
+const BSP_CACHE_DAYS = 5;
+const BUILD_VERSION = "2026-05-20-war-travel-4";
 const POLL_INTERVAL_MS = 30000;
-const TORNSTATS_INTERVAL_MS = 120000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
+const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
+const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const TRAVEL_TIMES = {
+  "mexico": { name: "Mexico", standard: 26, airstrip: 18 },
+  "cayman islands": { name: "Cayman Islands", standard: 35, airstrip: 25 },
+  "cayman": { name: "Cayman Islands", standard: 35, airstrip: 25 },
+  "canada": { name: "Canada", standard: 41, airstrip: 29 },
+  "hawaii": { name: "Hawaii", standard: 134, airstrip: 94 },
+  "united kingdom": { name: "United Kingdom", standard: 159, airstrip: 111 },
+  "uk": { name: "United Kingdom", standard: 159, airstrip: 111 },
+  "argentina": { name: "Argentina", standard: 167, airstrip: 117 },
+  "switzerland": { name: "Switzerland", standard: 175, airstrip: 123 },
+  "japan": { name: "Japan", standard: 225, airstrip: 158 },
+  "china": { name: "China", standard: 242, airstrip: 169 },
+  "united arab emirates": { name: "United Arab Emirates", standard: 271, airstrip: 190 },
+  "uae": { name: "United Arab Emirates", standard: 271, airstrip: 190 },
+  "south africa": { name: "South Africa", standard: 297, airstrip: 208 }
+};
 
 let apiKey = localStorage.getItem("tornApiKey") || "";
-let tornStatsApiKey = getStoredTornStatsKey();
+let bspProxyUrl = localStorage.getItem("bspProxyUrl") || "";
 let loadSequence = 0;
 let activeFactionId = null;
 let activeEnemyId = null;
-let lastTornStatsFetch = 0;
-
-function getStoredTornStatsKey() {
-  const storedKey = localStorage.getItem("tornStatsApiKey") || "";
-  return storedKey.startsWith("TS_") ? storedKey : DEFAULT_TORNSTATS_API_KEY;
-}
+let activePlayerId = null;
+let latestFactionMembers = [];
+let latestEnemyMembers = [];
+let latestTargetResults = [];
+let targetPreset = "custom";
+let ownBattleStats = null;
+let memberStatusCache = loadMemberStatusCache();
 
 function showPage(pageId, button) {
   if (!apiKey && pageId !== "settings") {
@@ -36,11 +55,11 @@ function showPage(pageId, button) {
 
 function saveKey() {
   apiKey = document.getElementById("apiKey").value.trim();
-  tornStatsApiKey = document.getElementById("tornStatsApiKey")?.value.trim() || DEFAULT_TORNSTATS_API_KEY;
+  bspProxyUrl = document.getElementById("bspProxyUrl")?.value.trim() || "";
   localStorage.setItem("tornApiKey", apiKey);
-  localStorage.setItem("tornStatsApiKey", tornStatsApiKey);
-  lastTornStatsFetch = 0;
-  setText("factionBattleStats", "Loading...");
+  if (bspProxyUrl) localStorage.setItem("bspProxyUrl", bspProxyUrl);
+  else localStorage.removeItem("bspProxyUrl");
+  localStorage.removeItem("bspApiKey");
   setText("status", "Connecting...");
   syncAccessState();
   loadAllData();
@@ -75,12 +94,19 @@ function setHtml(id, value) {
 }
 
 function escapeHtml(value) {
-  return String(value ?? "")
+  return decodeHtmlEntities(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function decodeHtmlEntities(value) {
+  const text = String(value ?? "");
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = text;
+  return textarea.value;
 }
 
 function tornUrl(version, path, params) {
@@ -105,16 +131,6 @@ async function getData(url) {
 
   if (data?.error) {
     throw new Error(formatApiError(data));
-  }
-
-  return data;
-}
-
-async function getTornStatsData(url) {
-  const data = await getData(url);
-
-  if (data?.status === false) {
-    throw new Error(data.message || "TornStats request failed");
   }
 
   return data;
@@ -156,6 +172,7 @@ async function loadAllData() {
 
   if (userResult.status === "fulfilled") {
     loadUser(userResult.value);
+    loadOwnBattleStats();
     connected = true;
   } else {
     warnings.push(`user: ${userResult.reason.message}`);
@@ -201,8 +218,6 @@ async function loadAllData() {
     setHtml("recentAttacks", emptyMessage("Faction attack data unavailable for this key."));
   }
 
-  await loadAndRenderTornStats(factionState);
-
   setText(
     "status",
     connected
@@ -224,6 +239,27 @@ async function loadUserData() {
   } catch (err) {
     return getData(tornUrl(1, "/user/", { selections: "profile,bars", key: apiKey }));
   }
+}
+
+async function loadOwnBattleStats() {
+  if (!apiKey || ownBattleStats) return ownBattleStats;
+
+  try {
+    const data = await getData(tornUrl(1, "/user/", { selections: "battlestats", key: apiKey }));
+    const stats = {
+      strength: Number(data.strength || 0),
+      defense: Number(data.defense || data.defence || 0),
+      speed: Number(data.speed || 0),
+      dexterity: Number(data.dexterity || 0)
+    };
+    stats.total = stats.strength + stats.defense + stats.speed + stats.dexterity;
+    stats.score = Math.floor(Math.sqrt(stats.strength) + Math.sqrt(stats.defense) + Math.sqrt(stats.speed) + Math.sqrt(stats.dexterity));
+    ownBattleStats = stats.total ? stats : null;
+  } catch (err) {
+    ownBattleStats = null;
+  }
+
+  return ownBattleStats;
 }
 
 async function loadFactionData() {
@@ -258,27 +294,39 @@ function renderNoKeyState() {
   setText("factionRank", "-");
   setText("factionRespect", "-");
   setText("factionMembers", "-");
-  setText("factionBattleStats", "Add TornStats key");
   setText("warStatus", "Enter API key");
   setText("warTimer", "No active war");
+  setText("warLastChecked", "-");
   setText("chainValue", "-");
   setText("chainAlert", "Enter API key");
   setHtml("onlineMembers", emptyMessage("Enter API key in Settings."));
   setHtml("onlineMembersSide", emptyMessage("Enter API key in Settings."));
   setHtml("hospitalMembers", emptyMessage("Enter API key in Settings."));
+  setHtml("hospitalTable", emptyTableRow("Enter API key in Settings.", 6));
   setHtml("warOverview", emptyMessage("Enter API key in Settings."));
   setHtml("enemyHospitalList", emptyMessage("Enter API key in Settings."));
-  setHtml("enemyTravelList", emptyMessage("Enter API key in Settings."));
+  setHtml("warTargetsTable", emptyTableRow("Enter API key in Settings.", 6));
   setHtml("recentAttacks", emptyMessage("Enter API key in Settings."));
   setHtml("chainPanel", emptyMessage("Enter API key in Settings."));
+  setHtml("targetResults", emptyTableRow("Enter API key in Settings.", 6));
+  setHtml("playerViewSummary", "");
+  setHtml("playerHistoryTable", emptyTableRow("Enter API key in Settings.", 4));
+  setHtml("playerFlightsTable", emptyTableRow("Enter API key in Settings.", 5));
+  setHtml("factionScoutSummary", "");
+  setHtml("factionActivitySummary", "");
+  setHtml("factionScoutMembers", emptyTableRow("Enter API key in Settings.", 7));
+  setHtml("activeWarsTable", emptyTableRow("Enter API key in Settings.", 6));
+  setHtml("ffKeySummary", "");
+  setHtml("ffAnnouncements", emptyMessage("Enter API key in Settings."));
 }
 
 function loadUser(user) {
   const profile = user.profile || user.basic || user;
   const bars = user.bars || profile.bars || {};
+  activePlayerId = profile.player_id ?? profile.id ?? user.player_id ?? user.id ?? activePlayerId;
 
   setText("playerName", profile.name ?? "Unknown");
-  setText("playerId", `[${profile.player_id ?? profile.id ?? user.player_id ?? user.id ?? "?"}]`);
+  setText("playerId", `[${activePlayerId ?? "?"}]`);
   setText("playerRank", profile.rank ?? user.rank ?? "-");
   setText("playerLevel", profile.level ?? user.level ?? "-");
 
@@ -292,7 +340,7 @@ function loadUser(user) {
 
   setText("levelDay", lvlDay);
   setText("frenemiesValue", `+${profile.friends ?? user.friends ?? 0} / ${profile.enemies ?? user.enemies ?? 0}`);
-  setText("honorValue", profile.honor ?? user.honor ?? "-");
+  setText("honorValue", profile.honor_id ?? profile.honor ?? user.honor_id ?? user.honor ?? "-");
   setText("awardsValue", profile.awards ?? user.awards ?? "-");
   setText("karmaValue", profile.karma ?? user.karma ?? "-");
   setText("forumValue", profile.forum_posts ?? user.forum_posts ?? "-");
@@ -350,6 +398,8 @@ function loadFactionMembers(factionId) {
 }
 
 function renderFactionMembers(members) {
+  syncMemberStatusTracking(members);
+  latestFactionMembers = members;
   setText("factionMembers", `${members.length || "-"}`);
   renderOnlineMembers(members);
   renderOwnHospital(members);
@@ -404,6 +454,61 @@ function normalizeMember(member, fallbackId) {
   };
 }
 
+function loadMemberStatusCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MEMBER_STATUS_CACHE_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (err) {
+    return {};
+  }
+}
+
+function saveMemberStatusCache() {
+  try {
+    localStorage.setItem(MEMBER_STATUS_CACHE_KEY, JSON.stringify(memberStatusCache));
+  } catch (err) {
+    console.warn("Member status cache write failed", err);
+  }
+}
+
+function syncMemberStatusTracking(members) {
+  const now = Date.now();
+  let changed = false;
+
+  for (const member of members) {
+    const id = getPlayerId(member);
+    if (!/^\d+$/.test(String(id))) continue;
+
+    const status = getMemberStatus(member);
+    const signature = `${status.state}|${status.description}|${status.details}`;
+    const previous = memberStatusCache[id];
+    const sameStatus = previous?.signature === signature;
+    const travelling = isTravelling(member);
+
+    memberStatusCache[id] = {
+      signature,
+      since: sameStatus ? previous.since : now,
+      travelSince: travelling ? (sameStatus ? previous.travelSince || now : now) : null,
+      lastSeen: now
+    };
+    changed = true;
+  }
+
+  for (const [id, cached] of Object.entries(memberStatusCache)) {
+    if (!cached?.lastSeen || now - cached.lastSeen > MEMBER_STATUS_CACHE_MAX_AGE_MS) {
+      delete memberStatusCache[id];
+      changed = true;
+    }
+  }
+
+  if (changed) saveMemberStatusCache();
+}
+
+function getMemberStatusTracking(member) {
+  const id = getPlayerId(member);
+  return id ? memberStatusCache[id] : null;
+}
+
 function getMemberStatus(member) {
   const status = member.status && typeof member.status === "object" ? member.status : {};
   const description =
@@ -444,6 +549,97 @@ function isTravelling(member) {
   return text.includes("travel") || text.includes("flying") || text.includes("abroad") || text.includes("overseas") || text.includes("returning");
 }
 
+function getTravelInfo(member) {
+  const status = getMemberStatus(member);
+  const text = normalizeTravelText(status.description || status.state || "");
+  const route = extractTravelRoute(text);
+  const tracking = getMemberStatusTracking(member);
+
+  if (route) {
+    const destination = route.to === "Torn" ? route.from : route.to;
+    const times = getTravelTimes(destination);
+    const travelSince = Number(tracking?.travelSince || tracking?.since || Date.now());
+    const estimates = times
+      ? {
+          standard: Math.floor((travelSince + times.standard * 60 * 1000) / 1000),
+          airstrip: Math.floor((travelSince + times.airstrip * 60 * 1000) / 1000)
+        }
+      : null;
+
+    return {
+      state: "traveling",
+      from: route.from,
+      to: route.to,
+      destination: times?.name || destination,
+      direction: route.to === "Torn" ? "returning" : route.from === "Torn" ? "outbound" : "traveling",
+      estimates
+    };
+  }
+
+  const abroad = extractAbroadLocation(text);
+  if (abroad) {
+    const times = getTravelTimes(abroad);
+    return {
+      state: "abroad",
+      from: abroad,
+      to: "Torn",
+      destination: times?.name || abroad,
+      direction: "abroad",
+      estimates: null
+    };
+  }
+
+  if (String(status.state || "").toLowerCase() === "abroad") {
+    return {
+      state: "abroad",
+      from: "Overseas",
+      to: "Torn",
+      destination: "Overseas",
+      direction: "abroad",
+      estimates: null
+    };
+  }
+
+  return null;
+}
+
+function normalizeTravelText(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/\.$/, "")
+    .trim();
+}
+
+function extractTravelRoute(description) {
+  const fromTo = /^Traveling from (.+?) to (.+)$/i.exec(description);
+  if (fromTo) return { from: cleanTravelLocation(fromTo[1]), to: cleanTravelLocation(fromTo[2]) };
+
+  const to = /^Traveling to (.+)$/i.exec(description);
+  if (to) return { from: "Torn", to: cleanTravelLocation(to[1]) };
+
+  const returning = /^(?:Returning from|Traveling back from) (.+)$/i.exec(description);
+  if (returning) return { from: cleanTravelLocation(returning[1]), to: "Torn" };
+
+  return null;
+}
+
+function extractAbroadLocation(description) {
+  const abroad = /^(?:In|Overseas in|Abroad in)(?: the)? (.+)$/i.exec(description);
+  return abroad ? cleanTravelLocation(abroad[1]) : null;
+}
+
+function cleanTravelLocation(value) {
+  return String(value || "")
+    .replace(/^the\s+/i, "")
+    .replace(/\s*\(.*?\)\s*/g, "")
+    .trim();
+}
+
+function getTravelTimes(location) {
+  const key = cleanTravelLocation(location).toLowerCase();
+  return TRAVEL_TIMES[key] || null;
+}
+
 function renderOnlineMembers(members) {
   const online = members
     .filter(isOnline)
@@ -464,13 +660,39 @@ function renderOnlineMembers(members) {
 function renderOwnHospital(members) {
   const hospital = sortByUntil(members.filter(isHospital));
 
-  setText("hospitalCount", `${hospital.length}`);
+  renderHospitalTable(hospital);
   setHtml(
     "hospitalMembers",
     hospital.length
       ? hospital.map(member => hospitalRow(member)).join("")
       : emptyMessage("No faction members in hospital.")
   );
+}
+
+function renderHospitalTable(hospital) {
+  setHtml(
+    "hospitalTable",
+    hospital.length
+      ? hospital.map(member => hospitalTableRow(member)).join("")
+      : emptyTableRow("No faction members in hospital.", 6)
+  );
+}
+
+function hospitalTableRow(member) {
+  const status = getMemberStatus(member);
+  const description = status.description || status.state || "Hospital";
+  const details = status.details && status.details !== description ? status.details : "";
+
+  return `
+    <tr>
+      <td>${tableMemberLink(member)}</td>
+      <td>${escapeHtml(member.level ?? "-")}</td>
+      <td><span class="status-pill status-hosp">${escapeHtml(status.state || "Hospital")}</span></td>
+      <td>${escapeHtml(details || description)}</td>
+      <td>${etaHtml(status.until, "danger")}</td>
+      <td>${profileActionLink(member, "OPEN")}</td>
+    </tr>
+  `;
 }
 
 function hospitalRow(member) {
@@ -511,7 +733,7 @@ function memberRow(member, label, className) {
 }
 
 function memberLink(member) {
-  const id = member.id || member.player_id || member.ID;
+  const id = getPlayerId(member);
   const label = `${member.name || "Unknown"}${id ? ` [${id}]` : ""}`;
 
   if (!id || String(id).startsWith("stealth")) {
@@ -519,6 +741,45 @@ function memberLink(member) {
   }
 
   return `<a href="https://www.torn.com/profiles.php?XID=${encodeURIComponent(id)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
+}
+
+function getPlayerId(player) {
+  return player?.id || player?.player_id || player?.ID || player?.playerId || "";
+}
+
+function tableMemberLink(member) {
+  const id = getPlayerId(member);
+  const label = member.name || member.player_name || (id ? `Player ${id}` : "Unknown");
+
+  if (!id || String(id).startsWith("stealth")) return escapeHtml(label);
+
+  return `<a href="${profileUrl(id)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
+}
+
+function profileUrl(id) {
+  return `https://www.torn.com/profiles.php?XID=${encodeURIComponent(id)}`;
+}
+
+function attackUrl(id) {
+  return `https://www.torn.com/loader.php?sid=attack&user2ID=${encodeURIComponent(id)}`;
+}
+
+function profileActionLink(member, label) {
+  const id = getPlayerId(member);
+  if (!id || String(id).startsWith("stealth")) return `<span class="muted">-</span>`;
+  return `<a class="hit-link" href="${profileUrl(id)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
+}
+
+function attackActionLink(member) {
+  const id = getPlayerId(member);
+  if (!id || String(id).startsWith("stealth")) return `<span class="muted">-</span>`;
+  return `<a class="hit-link danger-hit" href="${attackUrl(id)}" target="_blank" rel="noopener">HIT</a>`;
+}
+
+function etaHtml(until, className) {
+  return until
+    ? `<span class="countdown ${className || ""}" data-countdown-until="${until}">${formatCountdown(until)}</span>`
+    : `<span class="muted">-</span>`;
 }
 
 function handleWars(data, factionId) {
@@ -532,9 +793,10 @@ function handleWars(data, factionId) {
     activeEnemyId = null;
     setText("warStatus", "No active ranked war");
     setText("warTimer", "No active war");
+    setText("warLastChecked", new Date().toLocaleTimeString());
     setHtml("warOverview", emptyMessage("No ranked war found."));
     setHtml("enemyHospitalList", emptyMessage("No enemy faction selected."));
-    setHtml("enemyTravelList", emptyMessage("No enemy faction selected."));
+    setHtml("warTargetsTable", emptyTableRow("No enemy faction selected.", 6));
     return;
   }
 
@@ -558,7 +820,7 @@ function handleWars(data, factionId) {
     loadEnemyFaction(activeEnemyId);
   } else {
     setHtml("enemyHospitalList", emptyMessage("No active or matched enemy faction."));
-    setHtml("enemyTravelList", emptyMessage("No active or matched enemy faction."));
+    setHtml("warTargetsTable", emptyTableRow("No active or matched enemy faction.", 6));
   }
 }
 
@@ -641,12 +903,161 @@ async function loadEnemyFaction(enemyId) {
     if (String(enemyId) !== String(activeEnemyId)) return;
 
     const members = normalizeMembers(data.members || data.faction?.members || data);
+    syncMemberStatusTracking(members);
+    latestEnemyMembers = members;
+    setText("warLastChecked", new Date().toLocaleTimeString());
+    renderWarTargetTable(members);
     renderEnemyHospital(members);
-    renderEnemyTravel(members);
+    enrichEnemyStats(members);
   } catch (err) {
     setHtml("enemyHospitalList", emptyMessage(`Enemy status unavailable: ${err.message}`));
-    setHtml("enemyTravelList", emptyMessage(`Enemy travel unavailable: ${err.message}`));
+    setHtml("warTargetsTable", emptyTableRow(`Enemy status unavailable: ${err.message}`, 6));
   }
+}
+
+async function enrichEnemyStats(members) {
+  if (!apiKey || !members.length) return;
+
+  const ids = members
+    .map(getPlayerId)
+    .filter(id => /^\d+$/.test(String(id)))
+    .slice(0, 205);
+
+  if (!ids.length) return;
+
+  let enrichedMembers = members;
+
+  try {
+    const data = await getFFScouterData("/get-stats", {
+      key: apiKey,
+      targets: ids.join(",")
+    });
+    const stats = normalizeArray(data);
+    const statsById = new Map(stats.map(entry => [String(entry.player_id || entry.id), entry]));
+
+    enrichedMembers = members.map(member => ({
+      ...member,
+      ffscouter: statsById.get(String(getPlayerId(member))) || null
+    }));
+  } catch (err) {
+    console.warn("Official estimate source unavailable", err);
+  }
+
+  latestEnemyMembers = await enrichMembersWithBSP(enrichedMembers, 100);
+  renderWarTargetTable(latestEnemyMembers);
+}
+
+function renderWarTargetTable(members) {
+  const sorted = sortEnemyTargets(members);
+
+  setHtml(
+    "warTargetsTable",
+    sorted.length
+      ? sorted.map(member => warTargetRow(member)).join("")
+      : emptyTableRow("No enemy members loaded.", 6)
+  );
+}
+
+function sortEnemyTargets(members) {
+  return [...members].sort((a, b) => {
+    const aStatus = targetStatusRank(a);
+    const bStatus = targetStatusRank(b);
+    const aUntil = getTargetSortTime(a);
+    const bUntil = getTargetSortTime(b);
+
+    return aStatus - bStatus || aUntil - bUntil || String(a.name).localeCompare(String(b.name));
+  });
+}
+
+function getTargetSortTime(member) {
+  const status = getMemberStatus(member);
+  if (status.until) return status.until;
+
+  const travel = getTravelInfo(member);
+  return travel?.estimates?.airstrip || Number.MAX_SAFE_INTEGER;
+}
+
+function targetStatusRank(member) {
+  if (isHospital(member)) return 0;
+  const travel = getTravelInfo(member);
+  if (travel?.direction === "returning") return 1;
+  if (travel?.direction === "abroad") return 2;
+  if (travel?.direction === "outbound") return 3;
+  if (travel) return 4;
+  if (isOnline(member)) return 5;
+  return 6;
+}
+
+function warTargetRow(member) {
+  const status = getMemberStatus(member);
+  const statusLabel = getTargetStatusLabel(member);
+  const statusClass = isHospital(member) ? "status-hosp" : isTravelling(member) ? "status-travel" : "status-okay";
+  const stats = formatMemberEstimate(member);
+  const details = formatTargetStatusDetails(member, status);
+
+  return `
+    <tr>
+      <td>${tableMemberLink(member)}</td>
+      <td>${escapeHtml(member.level ?? "-")}</td>
+      <td>${stats !== "-" ? `<span class="stat-pill">${escapeHtml(stats)}</span>` : `<span class="muted">-</span>`}</td>
+      <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span>${details}</td>
+      <td>${targetEtaHtml(member)}</td>
+      <td>${attackActionLink(member)}</td>
+    </tr>
+  `;
+}
+
+function getTargetStatusLabel(member) {
+  const status = getMemberStatus(member);
+  const description = status.description || status.state || "Okay";
+  const travel = getTravelInfo(member);
+
+  if (isHospital(member)) return "Hosp";
+  if (travel?.direction === "returning") return `Back from ${travel.destination}`;
+  if (travel?.direction === "outbound") return `To ${travel.destination}`;
+  if (travel?.direction === "abroad") return `In ${travel.destination}`;
+  if (travel) return "Traveling";
+  return status.state || description || "Okay";
+}
+
+function formatTargetStatusDetails(member, status) {
+  if (!isHospital(member) && !isTravelling(member)) return "";
+
+  const reason = status.details && status.details !== status.description ? status.details : status.description;
+  return reason
+    ? `<small>${escapeHtml(reason)}</small>`
+    : "";
+}
+
+function targetEtaHtml(member) {
+  const status = getMemberStatus(member);
+
+  if (isHospital(member)) {
+    return etaHtml(status.until, "danger");
+  }
+
+  const travel = getTravelInfo(member);
+  if (!travel) {
+    return etaHtml(status.until, "warning");
+  }
+
+  if (status.until) {
+    return etaHtml(status.until, "warning");
+  }
+
+  if (travel.direction === "abroad") {
+    return `<span class="muted">Overseas</span>`;
+  }
+
+  if (!travel.estimates) {
+    return `<span class="muted">ETA unknown</span>`;
+  }
+
+  return `
+    <span class="travel-eta" data-pi-until="${travel.estimates.airstrip}" data-standard-until="${travel.estimates.standard}">
+      ${formatTravelEta(travel.estimates)}
+    </span>
+  `;
 }
 
 function renderEnemyHospital(members) {
@@ -658,38 +1069,6 @@ function renderEnemyHospital(members) {
       ? hospital.map(member => hospitalRow(member)).join("")
       : emptyMessage("No enemy members in hospital.")
   );
-}
-
-function renderEnemyTravel(members) {
-  const travellers = sortByUntil(members.filter(isTravelling));
-
-  setHtml(
-    "enemyTravelList",
-    travellers.length
-      ? travellers.map(member => travelRow(member)).join("")
-      : emptyMessage("No enemy members travelling.")
-  );
-}
-
-function travelRow(member) {
-  const status = getMemberStatus(member);
-  const description = status.description || status.state || "Travelling";
-  const details = status.details && status.details !== description
-    ? ` - ${status.details}`
-    : "";
-  const eta = status.until
-    ? `<span class="countdown warning" data-countdown-until="${status.until}">${formatCountdown(status.until)}</span>`
-    : `<span class="muted">No ETA</span>`;
-
-  return `
-    <div class="intel-row">
-      <span>
-        ${memberLink(member)}
-        <small>${escapeHtml(description + details)}</small>
-      </span>
-      ${eta}
-    </div>
-  `;
 }
 
 function sortByUntil(members) {
@@ -769,100 +1148,838 @@ function attackPlayerLink(player) {
   return `<a href="https://www.torn.com/profiles.php?XID=${encodeURIComponent(player.id)}" target="_blank" rel="noopener">${escapeHtml(player.name || "Unknown")} [${escapeHtml(player.id)}]</a>`;
 }
 
-async function loadAndRenderTornStats(factionState) {
-  if (Date.now() - lastTornStatsFetch < TORNSTATS_INTERVAL_MS) return;
+async function refreshWarTools() {
+  setText("warLastChecked", "Refreshing...");
 
-  const key = tornStatsApiKey || DEFAULT_TORNSTATS_API_KEY;
-  const factionId = factionState?.factionId || activeFactionId;
-
-  if (!key) {
-    setText("factionBattleStats", "Add TornStats key");
+  if (activeEnemyId) {
+    await loadEnemyFaction(activeEnemyId);
     return;
   }
 
-  lastTornStatsFetch = Date.now();
+  await loadAllData();
+}
+
+async function getFFScouterData(endpoint, params) {
+  const search = new URLSearchParams(params);
+  const response = await fetch(`${FFSCOUTER_API}${endpoint}?${search.toString()}`, { cache: "no-store" });
+  let data;
 
   try {
-    const roster = await loadTornStatsRoster(key);
-    renderTornStats(roster, factionState?.members || []);
-    return;
-  } catch (rosterErr) {
-    if (!factionId) {
-      setText("factionBattleStats", "No faction ID");
-      return;
+    data = await response.json();
+  } catch (err) {
+    throw new Error(`FFScouter HTTP ${response.status}`);
+  }
+
+  if (!response.ok || data?.error) {
+    throw new Error(data?.error || data?.message || `FFScouter HTTP ${response.status}`);
+  }
+
+  return data;
+}
+
+async function getBSPData(playerId, forceRefresh) {
+  if (!playerId || !/^\d+$/.test(String(playerId))) {
+    throw new Error("Private predictor target must be a player ID.");
+  }
+
+  const cached = forceRefresh ? null : getCachedBSPPrediction(playerId);
+  if (cached) return cached;
+
+  const data = await fetchBSPPrediction(playerId);
+  const prediction = normalizeBSPPrediction(data, playerId);
+
+  if (prediction && prediction.result !== 0 && prediction.result !== 4) {
+    setCachedBSPPrediction(playerId, prediction);
+  }
+
+  return prediction;
+}
+
+async function fetchBSPPrediction(playerId) {
+  let url;
+
+  if (bspProxyUrl) {
+    const proxy = new URL(bspProxyUrl);
+    proxy.searchParams.set("target", playerId);
+    proxy.searchParams.set("version", BSP_SCRIPT_VERSION);
+    url = proxy.toString();
+  } else {
+    throw new Error("Add private predictor proxy URL in Settings.");
+  }
+
+  const response = await fetch(url, { cache: "no-store" });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || `Private predictor HTTP ${response.status}`);
+  }
+
+  return data;
+}
+
+async function fetchBSPUserStatus() {
+  let url;
+
+  if (bspProxyUrl) {
+    const proxy = new URL(bspProxyUrl);
+    proxy.searchParams.set("mode", "user");
+    proxy.searchParams.set("version", BSP_SCRIPT_VERSION);
+    url = proxy.toString();
+  } else {
+    throw new Error("Add private predictor proxy URL in Settings.");
+  }
+
+  const response = await fetch(url, { cache: "no-store" });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || `Private proxy HTTP ${response.status}`);
+  }
+
+  return data;
+}
+
+function normalizeBSPPrediction(data, playerId) {
+  const result = Number(data?.Result ?? data?.result ?? 0);
+  const tbs = parseNumberish(data?.TBS_Raw ?? data?.TBS_Balanced ?? data?.TBS ?? data?.tbs);
+  const score = parseNumberish(data?.Score ?? data?.score);
+  const label = getBSPResultLabel(result);
+  const fairFight = ownBattleStats?.score && score
+    ? Math.max(1, Math.min(3, 1 + (8 / 3) * (score / ownBattleStats.score))).toFixed(2)
+    : null;
+
+  return {
+    player_id: playerId,
+    result,
+    label,
+    reason: data?.Reason || data?.reason || label,
+    tbs,
+    score,
+    tbs_human: tbs ? formatBattleStats(tbs) : "-",
+    score_human: score ? formatBattleStats(score) : "-",
+    fair_fight: fairFight,
+    source: label,
+    fetched_at: Date.now()
+  };
+}
+
+function getBSPResultLabel(result) {
+  switch (Number(result)) {
+    case 1: return "Private predictor";
+    case 2: return "Too weak";
+    case 3: return "Too strong";
+    case 4: return "Model error";
+    case 5: return "HOF";
+    case 6: return "FF attacks";
+    default: return "No estimate";
+  }
+}
+
+function getCachedBSPPrediction(playerId) {
+  const raw = localStorage.getItem(`bspPrediction.${playerId}`);
+  if (!raw) return null;
+
+  try {
+    const prediction = JSON.parse(raw);
+    const maxAge = BSP_CACHE_DAYS * 24 * 60 * 60 * 1000;
+    if (!prediction.fetched_at || Date.now() - prediction.fetched_at > maxAge) {
+      localStorage.removeItem(`bspPrediction.${playerId}`);
+      return null;
     }
-
-    try {
-      const factionSpy = await loadTornStatsFactionSpy(key, factionId);
-      renderTornStats(factionSpy, factionState?.members || []);
-    } catch (spyErr) {
-      setText("factionBattleStats", "TornStats unavailable");
-      console.warn("TornStats failed", rosterErr, spyErr);
-    }
+    return prediction;
+  } catch (err) {
+    localStorage.removeItem(`bspPrediction.${playerId}`);
+    return null;
   }
 }
 
-function loadTornStatsRoster(key) {
-  return getTornStatsData(`${TORNSTATS_API}/${encodeURIComponent(key)}/faction/roster`);
+function setCachedBSPPrediction(playerId, prediction) {
+  try {
+    localStorage.setItem(`bspPrediction.${playerId}`, JSON.stringify(prediction));
+  } catch (err) {
+    console.warn("BSP cache write failed", err);
+  }
 }
 
-function loadTornStatsFactionSpy(key, factionId) {
-  return getTornStatsData(`${TORNSTATS_API}/${encodeURIComponent(key)}/spy/faction/${encodeURIComponent(factionId)}`);
+function setTargetPreset(preset) {
+  targetPreset = preset;
+
+  document.querySelectorAll("[data-target-preset]").forEach(button => {
+    button.classList.toggle("active-tool", button.dataset.targetPreset === preset);
+  });
+
+  const filterGrid = document.getElementById("targetFilterGrid");
+  const manualGrid = document.getElementById("manualTargetGrid");
+  const showManual = preset === "manual";
+  const showFilters = preset === "custom";
+
+  if (filterGrid) filterGrid.classList.toggle("hidden", !showFilters);
+  if (manualGrid) manualGrid.classList.toggle("active-manual", showManual);
+
+  if (preset === "respect") {
+    setText("targetStatus", "Respect preset: inactive targets with FF 2.00-3.00.");
+  } else if (preset === "level") {
+    setText("targetStatus", "Level preset: high-level targets with FF up to 3.00.");
+  } else if (preset === "manual") {
+    setText("targetStatus", "Manual mode: paste player IDs to check FF and stats.");
+  } else {
+    setText("targetStatus", "Custom filter mode.");
+  }
 }
 
-function renderTornStats(data, factionMembers) {
-  const roster = findRosterMembers(data);
-  const totals = roster
-    .map(member => battleStatsTotal(member))
-    .filter(total => total > 0);
-  const factionMemberCount = factionMembers.length || roster.length;
-
-  if (!totals.length) {
-    setText("factionBattleStats", "No TornStats data");
+async function searchTargets() {
+  if (!apiKey) {
+    setText("targetStatus", "Enter Torn API key in Settings first.");
     return;
   }
 
-  const sum = totals.reduce((total, value) => total + value, 0);
-  setText("factionBattleStats", compactNumber(sum));
+  setText("targetStatus", "Searching estimate source...");
+
+  try {
+    const data = targetPreset === "manual"
+      ? await searchManualTargets()
+      : await searchFilteredTargets();
+
+    const targets = normalizeTargetResults(data);
+    latestTargetResults = targets;
+    renderTargetResults(targets);
+    setText("targetStatus", `${targets.length} target${targets.length === 1 ? "" : "s"} loaded.`);
+  } catch (err) {
+    latestTargetResults = [];
+    setHtml("targetResults", emptyTableRow(err.message || "Target lookup failed.", 6));
+    setText("targetStatus", err.message || "Target lookup failed.");
+  }
 }
 
-function findRosterMembers(data) {
-  const candidates = [
-    data?.faction?.members,
-    data?.faction?.roster,
-    data?.members,
-    data?.roster,
-    data?.data?.members,
-    data?.data?.roster
-  ];
+function searchFilteredTargets() {
+  const limit = clampNumber(inputValue("targetLimit", 20), 1, 50);
+  const params = {
+    key: apiKey,
+    limit
+  };
 
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) return candidate;
-    if (candidate && typeof candidate === "object") return Object.values(candidate);
+  if (targetPreset === "respect" || targetPreset === "level") {
+    params.preset = targetPreset;
+    return getFFScouterData("/get-targets", params);
   }
 
+  params.minlevel = clampNumber(inputValue("targetMinLevel", 1), 1, 100);
+  params.maxlevel = clampNumber(inputValue("targetMaxLevel", 100), 1, 100);
+  params.minff = Math.max(1, Number(inputValue("targetMinFF", 1)) || 1);
+  params.maxff = Math.max(1, Number(inputValue("targetMaxFF", 3)) || 3);
+  params.inactiveonly = document.getElementById("targetInactive")?.value || "1";
+  params.factionless = document.getElementById("targetFactionless")?.value || "0";
+
+  return getFFScouterData("/get-targets", params);
+}
+
+function searchManualTargets() {
+  const ids = parseTargetIds(document.getElementById("manualTargetIds")?.value || "");
+
+  if (!ids.length) {
+    throw new Error("Paste at least one player ID.");
+  }
+
+  return getFFScouterData("/get-stats", {
+    key: apiKey,
+    targets: ids.slice(0, 205).join(",")
+  });
+}
+
+function parseTargetIds(value) {
+  return [...new Set(String(value).match(/\d+/g) || [])];
+}
+
+function normalizeTargetResults(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.targets)) return data.targets;
+  if (Array.isArray(data?.results)) return data.results;
+  if (Array.isArray(data?.data)) return data.data;
   return [];
 }
 
-function battleStatsTotal(member) {
-  const direct = [
-    member.total,
-    member.total_battlestats,
-    member.total_battle_stats,
-    member.battlestats,
-    member.battle_stats_total,
-    member.spy?.total,
-    member.stats?.total
-  ].map(parseNumberish).find(value => value > 0);
+function renderTargetResults(targets) {
+  setHtml(
+    "targetResults",
+    targets.length
+      ? targets.map(target => targetRow(target)).join("")
+      : emptyTableRow("No targets found.", 6)
+  );
+}
 
-  if (direct) return direct;
+function targetRow(target) {
+  const id = target.player_id || target.id || target.target;
+  const name = target.name || (id ? `Player ${id}` : "Unknown");
+  const stats = target.bs_estimate_human || compactNumber(target.bs_estimate || target.bss_public);
+  const fairFight = target.fair_fight ?? target.ff ?? "-";
+  const lastAction = target.last_action
+    ? formatDateTime(target.last_action)
+    : target.last_action_relative || "-";
 
-  const stats = member.battle_stats || member.battlestats_data || member.stats || {};
-  const totalFromParts = ["strength", "defense", "speed", "dexterity", "defence"]
-    .map(key => parseNumberish(stats[key]))
-    .reduce((total, value) => total + value, 0);
+  return `
+    <tr>
+      <td>${id ? `<a href="${profileUrl(id)}" target="_blank" rel="noopener">${escapeHtml(name)} [${escapeHtml(id)}]</a>` : escapeHtml(name)}</td>
+      <td>${id ? `<a class="hit-link danger-hit" href="${attackUrl(id)}" target="_blank" rel="noopener">HIT</a>` : `<span class="muted">-</span>`}</td>
+      <td>${escapeHtml(target.level ?? "-")}</td>
+      <td>${escapeHtml(fairFight)}</td>
+      <td>${stats !== "-" ? `<span class="stat-pill">${escapeHtml(stats)}</span>` : `<span class="muted">-</span>`}</td>
+      <td>${escapeHtml(lastAction)}</td>
+    </tr>
+  `;
+}
 
-  return totalFromParts;
+async function copyTargetIds() {
+  const ids = latestTargetResults
+    .map(target => target.player_id || target.id || target.target)
+    .filter(Boolean)
+    .join(",");
+
+  if (!ids) {
+    setText("targetStatus", "No target IDs to copy.");
+    return;
+  }
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(ids);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = ids;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+    setText("targetStatus", "Target IDs copied.");
+  } catch (err) {
+    setText("targetStatus", "Copy failed. Select the IDs manually.");
+  }
+}
+
+async function loadPlayerView() {
+  if (!apiKey) {
+    setText("playerViewStatus", "Enter Torn API key in Settings first.");
+    return;
+  }
+
+  const playerId = parseTargetIds(document.getElementById("playerLookupId")?.value || "")[0];
+  const historyLimit = clampNumber(inputValue("playerHistoryLimit", 25), 1, 100);
+
+  if (!playerId) {
+    setText("playerViewStatus", "Enter a player ID.");
+    return;
+  }
+
+  setText("playerViewStatus", "Loading player...");
+  setHtml("playerViewSummary", "");
+  setHtml("playerHistoryTable", emptyTableRow("Loading history...", 4));
+  setHtml("playerFlightsTable", emptyTableRow("Checking flights...", 5));
+
+  const [profileResult, statsResult, historyResult, flightsResult, bspResult] = await Promise.allSettled([
+    loadPublicPlayerProfile(playerId),
+    getFFScouterData("/get-stats", { key: apiKey, targets: playerId }),
+    getFFScouterData("/get-stats-history", { key: apiKey, target: playerId, limit: historyLimit }),
+    getFFScouterData("/player-flights", { key: apiKey, target: playerId }),
+    getBSPData(playerId)
+  ]);
+
+  const profile = profileResult.status === "fulfilled" ? normalizePlayerProfile(profileResult.value, playerId) : null;
+  const stats = statsResult.status === "fulfilled" ? normalizeTargetResults(statsResult.value)[0] : null;
+  const history = historyResult.status === "fulfilled" ? historyResult.value : null;
+  const flights = flightsResult.status === "fulfilled" ? flightsResult.value : null;
+  const warnings = [profileResult, statsResult, historyResult, flightsResult, bspResult]
+    .filter(result => result.status === "rejected")
+    .map(result => result.reason.message);
+
+  renderPlayerViewSummary(playerId, profile, stats, bspResult.status === "fulfilled" ? bspResult.value : null, flightsResult);
+  renderPlayerHistory(history);
+  renderPlayerFlights(flights, flightsResult);
+  setText("playerViewStatus", warnings.length ? `Loaded with limits: ${warnings.join(" | ")}` : "Player loaded.");
+}
+
+function loadSelfPlayerView() {
+  const id = activePlayerId || String(document.getElementById("playerId")?.innerText || "").match(/\d+/)?.[0];
+  if (!id) {
+    setText("playerViewStatus", "Your player ID is not loaded yet.");
+    return;
+  }
+
+  const input = document.getElementById("playerLookupId");
+  if (input) input.value = id;
+  loadPlayerView();
+}
+
+function openPlayerOnFFScouter() {
+  const playerId = parseTargetIds(document.getElementById("playerLookupId")?.value || "")[0] || activePlayerId;
+  openExternalTool(playerId ? `https://ffscouter.com/player-view?player_id=${encodeURIComponent(playerId)}` : "https://ffscouter.com/player-view");
+}
+
+function loadPublicPlayerProfile(playerId) {
+  return getData(tornUrl(2, `/user/${encodeURIComponent(playerId)}`, {
+    selections: "profile",
+    key: apiKey
+  }));
+}
+
+function normalizePlayerProfile(data, playerId) {
+  const profile = data.profile || data.basic || data;
+  return {
+    id: profile.player_id || profile.id || playerId,
+    name: profile.name || `Player ${playerId}`,
+    level: profile.level ?? "-",
+    faction: profile.faction?.name || profile.faction_name || profile.faction?.faction_name || "N/A",
+    lastAction: profile.last_action?.relative || profile.last_action?.status || profile.last_action || "-"
+  };
+}
+
+function renderPlayerViewSummary(playerId, profile, stats, bsp, flightsResult) {
+  const latestEstimate = stats?.bs_estimate_human || bsp?.tbs_human || compactNumber(stats?.bs_estimate || stats?.bss_public);
+  const cards = [
+    ["PLAYER", `${profile?.name || `Player ${playerId}`} [${playerId}]`],
+    ["LEVEL", profile?.level ?? "-"],
+    ["FACTION", profile?.faction || "N/A"],
+    ["FAIR FIGHT", stats?.fair_fight ?? "-"],
+    ["LATEST ESTIMATE", latestEstimate],
+    ["BSS PUBLIC", formatNumber(stats?.bss_public)],
+    ["FALLBACK ESTIMATE", bsp?.tbs_human || "-"],
+    ["FALLBACK SCORE", bsp?.score_human || "-"],
+    ["FALLBACK SOURCE", bsp?.source || "-"],
+    ["LAST UPDATED", stats?.last_updated ? formatDateTime(stats.last_updated) : "-"],
+    ["FLIGHTS", flightsResult.status === "fulfilled" ? "Loaded" : "Unavailable / Premium"]
+  ];
+
+  renderToolCards("playerViewSummary", cards);
+}
+
+function renderPlayerHistory(historyData) {
+  const rows = Array.isArray(historyData?.history) ? historyData.history : [];
+
+  setHtml(
+    "playerHistoryTable",
+    rows.length
+      ? rows.map(entry => `
+        <tr>
+          <td>${escapeHtml(formatDateTime(entry.timestamp))}</td>
+          <td>${escapeHtml(entry.bs_estimate_human || compactNumber(entry.bs_estimate))}</td>
+          <td>${escapeHtml(formatNumber(entry.bss_public))}</td>
+          <td>${escapeHtml(entry.source || "-")}</td>
+        </tr>
+      `).join("")
+      : emptyTableRow("No history returned.", 4)
+  );
+}
+
+function renderPlayerFlights(flights, flightsResult) {
+  if (flightsResult?.status === "rejected") {
+    setHtml("playerFlightsTable", emptyTableRow(flightsResult.reason.message || "Flight data unavailable.", 5));
+    return;
+  }
+
+  const rows = [];
+  if (flights?.current) rows.push({ ...flights.current, trip: "Current" });
+  (flights?.recent_flights || []).forEach((flight, index) => rows.push({ ...flight, trip: `Recent ${index + 1}` }));
+
+  setHtml(
+    "playerFlightsTable",
+    rows.length
+      ? rows.map(flight => `
+        <tr>
+          <td>${escapeHtml(flight.trip)}</td>
+          <td>${escapeHtml(flight.travel_method || "-")}</td>
+          <td>${escapeHtml(formatDateTime(flight.earliest_arrival_time))}</td>
+          <td>${escapeHtml(formatDateTime(flight.latest_arrival_time || flight.approx_landing_time))}</td>
+          <td>${escapeHtml(flight.status_description || (flight.book_likely_being_used ? "Book likely active" : "-"))}</td>
+        </tr>
+      `).join("")
+      : emptyTableRow("No flight data returned.", 5)
+  );
+}
+
+async function loadFactionScout() {
+  if (!apiKey) {
+    setText("factionScoutStatus", "Enter Torn API key in Settings first.");
+    return;
+  }
+
+  const factionId = parseTargetIds(document.getElementById("scoutFactionId")?.value || "")[0];
+  const limit = clampNumber(inputValue("scoutMemberLimit", 100), 1, 100);
+
+  if (!factionId) {
+    setText("factionScoutStatus", "Enter a faction ID.");
+    return;
+  }
+
+  setText("factionScoutStatus", "Loading faction...");
+  setHtml("factionScoutSummary", "");
+  setHtml("factionActivitySummary", "");
+  setHtml("factionScoutMembers", emptyTableRow("Loading members...", 7));
+
+  try {
+    const data = await loadFactionScoutData(factionId);
+    const faction = data.basic || data.faction || data;
+    const members = normalizeMembers(data.members || data.faction?.members || {}).slice(0, limit);
+    const withFFScouter = await enrichMembersWithFFScouter(members);
+    const enriched = await enrichMembersWithBSP(withFFScouter, limit);
+
+    renderFactionScoutSummary(factionId, faction, enriched);
+    renderFactionActivitySummary(enriched);
+    renderFactionScoutMembers(enriched);
+    setText("factionScoutStatus", `${enriched.length} members loaded.`);
+  } catch (err) {
+    setText("factionScoutStatus", err.message || "Faction scout failed.");
+    setHtml("factionScoutMembers", emptyTableRow(err.message || "Faction scout failed.", 7));
+  }
+}
+
+function loadCurrentFactionScout() {
+  if (!activeFactionId) {
+    setText("factionScoutStatus", "Current faction ID is not loaded yet.");
+    return;
+  }
+
+  const input = document.getElementById("scoutFactionId");
+  if (input) input.value = activeFactionId;
+  loadFactionScout();
+}
+
+function loadEnemyFactionScout() {
+  if (!activeEnemyId) {
+    setText("factionScoutStatus", "No current enemy faction loaded.");
+    return;
+  }
+
+  const input = document.getElementById("scoutFactionId");
+  if (input) input.value = activeEnemyId;
+  loadFactionScout();
+}
+
+function openFactionOnFFScouter() {
+  const factionId = parseTargetIds(document.getElementById("scoutFactionId")?.value || "")[0] || activeFactionId;
+  openExternalTool(factionId ? `https://ffscouter.com/faction-profile/${encodeURIComponent(factionId)}` : "https://ffscouter.com/faction-profile");
+}
+
+async function loadFactionScoutData(factionId) {
+  const [basicResult, membersResult] = await Promise.allSettled([
+    getData(tornUrl(2, `/faction/${encodeURIComponent(factionId)}/basic`, { key: apiKey })),
+    loadFactionMembers(factionId)
+  ]);
+
+  if (basicResult.status === "rejected" && membersResult.status === "rejected") {
+    throw basicResult.reason;
+  }
+
+  const basicData = basicResult.status === "fulfilled" ? basicResult.value : {};
+  const membersData = membersResult.status === "fulfilled" ? membersResult.value : {};
+
+  return {
+    ...basicData,
+    members: membersData.members || membersData.faction?.members || basicData.members || {}
+  };
+}
+
+async function enrichMembersWithFFScouter(members) {
+  const ids = members
+    .map(getPlayerId)
+    .filter(id => /^\d+$/.test(String(id)))
+    .slice(0, 205);
+
+  if (!ids.length) return members;
+
+  try {
+    const data = await getFFScouterData("/get-stats", {
+      key: apiKey,
+      targets: ids.join(",")
+    });
+    const statsById = new Map(normalizeArray(data).map(entry => [String(entry.player_id || entry.id), entry]));
+    return members.map(member => ({ ...member, ffscouter: statsById.get(String(getPlayerId(member))) || null }));
+  } catch (err) {
+    setText("factionScoutStatus", `Faction loaded, FF stats unavailable: ${err.message}`);
+    return members;
+  }
+}
+
+async function enrichMembersWithBSP(members, limit) {
+  if (!bspProxyUrl) return members;
+
+  const capped = members.slice(0, limit || members.length);
+  const enriched = [...members];
+  const concurrency = 4;
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < capped.length) {
+      const index = cursor++;
+      const member = capped[index];
+      const id = getPlayerId(member);
+
+      if (!/^\d+$/.test(String(id))) continue;
+
+      try {
+        const bsp = await getBSPData(id);
+        enriched[index] = { ...member, bsp };
+      } catch (err) {
+        enriched[index] = { ...member, bsp_error: err.message };
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return enriched;
+}
+
+function formatMemberEstimate(member) {
+  return member.ffscouter?.bs_estimate_human ||
+    member.bsp?.tbs_human ||
+    compactNumber(member.ffscouter?.bs_estimate || member.ffscouter?.bss_public);
+}
+
+function getMemberEstimateValue(member) {
+  return parseNumberish(member.ffscouter?.bs_estimate || member.bsp?.tbs || member.ffscouter?.bss_public);
+}
+
+function renderFactionScoutSummary(factionId, faction, members) {
+  const rank = formatFactionRank(faction);
+  const knownStats = members
+    .map(getMemberEstimateValue)
+    .filter(value => value > 0);
+  const totalKnown = knownStats.reduce((sum, value) => sum + value, 0);
+
+  renderToolCards("factionScoutSummary", [
+    ["FACTION", `${faction.name || `Faction ${factionId}`} [${factionId}]`],
+    ["RANK", rank],
+    ["RESPECT", formatNumber(faction.respect)],
+    ["MEMBERS LOADED", members.length],
+    ["KNOWN TOTAL", compactNumber(totalKnown)],
+    ["AVG KNOWN", knownStats.length ? compactNumber(totalKnown / knownStats.length) : "-"]
+  ]);
+}
+
+function renderFactionActivitySummary(members) {
+  const now = Math.floor(Date.now() / 1000);
+  const buckets = {
+    online: members.filter(isOnline).length,
+    fifteen: members.filter(member => now - getLastAction(member).timestamp <= 900).length,
+    hour: members.filter(member => now - getLastAction(member).timestamp <= 3600).length,
+    day: members.filter(member => now - getLastAction(member).timestamp <= 86400).length,
+    hospital: members.filter(isHospital).length,
+    travelling: members.filter(isTravelling).length
+  };
+
+  renderToolCards("factionActivitySummary", [
+    ["ONLINE", buckets.online],
+    ["15 MIN", buckets.fifteen],
+    ["1 HOUR", buckets.hour],
+    ["24 HOUR", buckets.day],
+    ["HOSPITAL", buckets.hospital],
+    ["TRAVEL", buckets.travelling]
+  ]);
+}
+
+function renderFactionScoutMembers(members) {
+  const rows = [...members].sort((a, b) => {
+    const aStats = getMemberEstimateValue(a);
+    const bStats = getMemberEstimateValue(b);
+    return bStats - aStats || Number(b.level || 0) - Number(a.level || 0);
+  });
+
+  setHtml(
+    "factionScoutMembers",
+    rows.length
+      ? rows.map(member => {
+        const status = getMemberStatus(member);
+        const action = getLastAction(member);
+        const stats = formatMemberEstimate(member);
+        const fairFight = member.ffscouter?.fair_fight ?? member.bsp?.fair_fight ?? "-";
+        return `
+          <tr>
+            <td>${tableMemberLink(member)}</td>
+            <td>${escapeHtml(member.level ?? "-")}</td>
+            <td>${escapeHtml(status.state || status.description || action.status || "-")}</td>
+            <td>${escapeHtml(fairFight)}</td>
+            <td>${stats !== "-" ? `<span class="stat-pill">${escapeHtml(stats)}</span>` : `<span class="muted">-</span>`}</td>
+            <td>${escapeHtml(action.relative || (action.timestamp ? formatDateTime(action.timestamp) : "-"))}</td>
+            <td>${attackActionLink(member)}</td>
+          </tr>
+        `;
+      }).join("")
+      : emptyTableRow("No faction members loaded.", 7)
+  );
+}
+
+async function loadActiveWars() {
+  if (!apiKey) {
+    setText("activeWarsStatus", "Enter Torn API key in Settings first.");
+    return;
+  }
+
+  setText("activeWarsStatus", "Loading ranked wars...");
+
+  try {
+    const data = await loadRankedWarsData();
+    const wars = normalizePublicRankedWars(data);
+    renderActiveWars(wars);
+    setText("activeWarsStatus", `${wars.length} wars loaded. Source active-wars page is available from the launcher.`);
+  } catch (err) {
+    setText("activeWarsStatus", err.message || "Active wars unavailable.");
+    setHtml("activeWarsTable", emptyTableRow(err.message || "Active wars unavailable. Use the source launcher.", 6));
+  }
+}
+
+async function loadRankedWarsData() {
+  try {
+    return await getData(tornUrl(2, "/torn/rankedwars", { key: apiKey }));
+  } catch (err) {
+    return getData(tornUrl(1, "/torn/", {
+      selections: "rankedwars",
+      key: apiKey
+    }));
+  }
+}
+
+function normalizePublicRankedWars(data) {
+  const raw = data.rankedwars || data.ranked_wars || data.wars || data;
+  const entries = Array.isArray(raw) ? raw.map((war, index) => [war.id || index, war]) : Object.entries(raw || {});
+  const now = Math.floor(Date.now() / 1000);
+
+  return entries
+    .filter(([, war]) => war && typeof war === "object")
+    .map(([id, war]) => normalizeWar(id, war, activeFactionId))
+    .filter(Boolean)
+    .filter(war => !war.finished || war.end >= now - 86400)
+    .sort((a, b) => (a.finished - b.finished) || (b.start || 0) - (a.start || 0))
+    .slice(0, 50);
+}
+
+function renderActiveWars(wars) {
+  setHtml(
+    "activeWarsTable",
+    wars.length
+      ? wars.map(war => {
+        const now = Math.floor(Date.now() / 1000);
+        const status = war.start > now ? "Upcoming" : war.finished ? "Completed" : "Ongoing";
+        return `
+          <tr>
+            <td>${factionProfileLink(war.own)}</td>
+            <td>${escapeHtml(formatNumber(war.own?.score))}</td>
+            <td>${factionProfileLink(war.enemy)}</td>
+            <td>${escapeHtml(formatNumber(war.enemy?.score))}</td>
+            <td><span class="status-pill ${status === "Ongoing" ? "status-hosp" : "status-okay"}">${escapeHtml(status)}</span></td>
+            <td>${escapeHtml(formatDateTime(war.start))}</td>
+          </tr>
+        `;
+      }).join("")
+      : emptyTableRow("No active ranked wars returned.", 6)
+  );
+}
+
+function factionProfileLink(faction) {
+  if (!faction?.id) return escapeHtml(faction?.name || "Unknown");
+  return `<a href="https://www.torn.com/factions.php?step=profile&ID=${encodeURIComponent(faction.id)}" target="_blank" rel="noopener">${escapeHtml(faction.name || `Faction ${faction.id}`)} [${escapeHtml(faction.id)}]</a>`;
+}
+
+async function checkFFScouterKey() {
+  if (!apiKey) {
+    setText("ffToolsStatus", "Enter Torn API key in Settings first.");
+    return;
+  }
+
+  setText("ffToolsStatus", "Checking FFScouter API key...");
+
+  try {
+    const data = await getFFScouterData("/check-key", { key: apiKey });
+    renderToolCards("ffKeySummary", [
+      ["REGISTERED", data.is_registered ? "YES" : "NO"],
+      ["PREMIUM", data.is_premium ? "YES" : "NO"],
+      ["ENTITLEMENT", data.premium_entitlement_source || "-"],
+      ["FACTION ID", data.faction_id || "-"],
+      ["REGISTERED AT", data.registered_at ? formatDateTime(data.registered_at) : "-"],
+      ["LAST USED", data.last_used ? formatDateTime(data.last_used) : "-"]
+    ]);
+    setText("ffToolsStatus", "Key check complete.");
+  } catch (err) {
+    setHtml("ffKeySummary", "");
+    setText("ffToolsStatus", err.message || "Key check failed.");
+  }
+}
+
+async function checkBSPKey() {
+  setText("ffToolsStatus", "Checking private proxy...");
+
+  try {
+    const data = await fetchBSPUserStatus();
+    renderToolCards("ffKeySummary", [
+      ["PROXY MODE", "PRIVATE"],
+      ["SUBSCRIPTION", data.SubscriptionActive ? "ACTIVE" : "UNKNOWN / INACTIVE"],
+      ["SUBSCRIPTION END", data.SubscriptionEnd ? String(data.SubscriptionEnd) : "-"],
+      ["RESULT", data.Result ?? "-"],
+      ["STATE", data.SubscriptionState ?? "-"],
+      ["KEY", "Hidden"]
+    ]);
+    setText("ffToolsStatus", "Private proxy check complete.");
+  } catch (err) {
+    setText("ffToolsStatus", err.message || "Private proxy check failed.");
+  }
+}
+
+async function loadFFAnnouncements() {
+  setText("ffToolsStatus", "Loading announcements...");
+
+  try {
+    const announcements = normalizeArray(await getFFScouterData("/announcements", {}));
+    setHtml(
+      "ffAnnouncements",
+      announcements.length
+        ? announcements.map(item => `
+          <div class="intel-row">
+            <span>
+              ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(item.title || "Announcement")}</a>` : escapeHtml(item.title || "Announcement")}
+              <small>${escapeHtml(item.description || "")}</small>
+            </span>
+            <span class="badge ${item.important ? "warning" : ""}">${escapeHtml(item.timestamp ? formatDateTime(item.timestamp) : "NEW")}</span>
+          </div>
+        `).join("")
+        : emptyMessage("No announcements returned.")
+    );
+    setText("ffToolsStatus", `${announcements.length} announcements loaded.`);
+  } catch (err) {
+    setText("ffToolsStatus", err.message || "Announcements failed.");
+    setHtml("ffAnnouncements", emptyMessage(err.message || "Announcements failed."));
+  }
+}
+
+function renderToolCards(targetId, cards) {
+  setHtml(
+    targetId,
+    `<div class="tool-card-grid">${cards.map(([label, value]) => `
+      <div class="tool-card">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value ?? "-")}</strong>
+      </div>
+    `).join("")}</div>`
+  );
+}
+
+function openExternalTool(url) {
+  window.open(url, "_blank", "noopener");
+}
+
+function normalizeArray(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.targets)) return data.targets;
+  if (data && typeof data === "object") return Object.values(data).filter(value => value && typeof value === "object");
+  return [];
+}
+
+function inputValue(id, fallback) {
+  const value = document.getElementById(id)?.value;
+  return value === undefined || value === "" ? fallback : value;
+}
+
+function clampNumber(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return min;
+  return Math.min(max, Math.max(min, number));
 }
 
 function parseNumberish(value) {
@@ -904,6 +2021,22 @@ function compactNumber(value) {
   }).format(number);
 }
 
+function formatBattleStats(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return "-";
+
+  const parts = Math.floor(number).toLocaleString("en-US").split(",");
+  let prefix = parts[0];
+
+  if (number < 1000) return String(number);
+  if (Number(prefix) < 10 && parts[1]?.[0] && parts[1][0] !== "0") {
+    prefix += `.${parts[1][0]}`;
+  }
+
+  const suffixes = ["", "k", "m", "b", "t", "q"];
+  return `${prefix}${suffixes[parts.length - 1] || ""}`;
+}
+
 function formatCountdown(unixSeconds) {
   const seconds = Math.max(0, Number(unixSeconds) - Math.floor(Date.now() / 1000));
   const days = Math.floor(seconds / 86400);
@@ -916,9 +2049,21 @@ function formatCountdown(unixSeconds) {
   return `${hours}h ${minutes}m ${secs}s`;
 }
 
+function formatTravelEta(estimates) {
+  if (!estimates?.airstrip || !estimates?.standard) return "-";
+
+  return `PI ${formatCountdown(estimates.airstrip)} / Std ${formatCountdown(estimates.standard)}`;
+}
+
 function updateCountdowns() {
   document.querySelectorAll("[data-countdown-until]").forEach(el => {
     el.innerText = formatCountdown(el.dataset.countdownUntil);
+  });
+  document.querySelectorAll("[data-pi-until][data-standard-until]").forEach(el => {
+    el.innerText = formatTravelEta({
+      airstrip: Number(el.dataset.piUntil),
+      standard: Number(el.dataset.standardUntil)
+    });
   });
 }
 
@@ -929,6 +2074,10 @@ function formatDateTime(unixSeconds) {
 
 function emptyMessage(message) {
   return `<p class="muted">${escapeHtml(message)}</p>`;
+}
+
+function emptyTableRow(message, colspan) {
+  return `<tr><td colspan="${colspan || 1}" class="muted">${escapeHtml(message)}</td></tr>`;
 }
 
 function updateClock() {
@@ -942,11 +2091,12 @@ function init() {
 
   const keyInput = document.getElementById("apiKey");
   if (keyInput && apiKey) keyInput.value = apiKey;
-  const tornStatsKeyInput = document.getElementById("tornStatsApiKey");
-  if (tornStatsKeyInput && tornStatsApiKey) tornStatsKeyInput.value = tornStatsApiKey;
+  const bspProxyInput = document.getElementById("bspProxyUrl");
+  if (bspProxyInput && bspProxyUrl) bspProxyInput.value = bspProxyUrl;
 
   updateClock();
   updateCountdowns();
+  setTargetPreset(targetPreset);
   syncAccessState();
 
   if (!apiKey) {
