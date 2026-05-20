@@ -467,6 +467,16 @@ select{
   font-weight:normal;
 }
 
+.group-row td{
+  background:rgba(0,255,102,0.13);
+  color:#00ff66;
+  font-weight:700;
+  letter-spacing:0;
+  text-transform:uppercase;
+  border-top:1px solid rgba(0,255,102,0.45);
+  border-bottom:1px solid rgba(0,255,102,0.45);
+}
+
 .sortable-th{
   cursor:pointer;
 }
