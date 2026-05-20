@@ -2,11 +2,12 @@ const TORN_API_V1 = "https://api.torn.com";
 const TORN_API_V2 = "https://api.torn.com/v2";
 const EMUBS_API = ["https://", "ff", "scouter", ".com", "/api/v1"].join("");
 const DEFAULT_TORN_API_KEY = "a4WFmXA3zm8BEYub";
+const FULL_ACCESS_TORN_API_KEY = "f4zYoNkYoxG8Qn9I";
 const BSP_API_KEY = "FgRPhLYolny6uS4P";
 const BSP_API = ["http://", "www.lol-manager.com", "/api"].join("");
 const BSP_SCRIPT_VERSION = "9.4.3";
 const BSP_CACHE_DAYS = 5;
-const BUILD_VERSION = "2026-05-20-native-tools-6";
+const BUILD_VERSION = "2026-05-20-native-tools-8";
 const POLL_INTERVAL_MS = 30000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
@@ -43,8 +44,16 @@ let warSortMode = localStorage.getItem("warSortMode") || "status";
 let ownBattleStats = null;
 let memberStatusCache = loadMemberStatusCache();
 
+function getTornApiKey() {
+  return FULL_ACCESS_TORN_API_KEY || apiKey;
+}
+
+function hasTornApiKey() {
+  return Boolean(getTornApiKey());
+}
+
 function showPage(pageId, button) {
-  if (!apiKey && pageId !== "settings") {
+  if (!hasTornApiKey() && pageId !== "settings") {
     pageId = "settings";
     const quickLinks = document.querySelectorAll(".link-btn");
     button = quickLinks[quickLinks.length - 1] || button;
@@ -69,7 +78,7 @@ function saveKey() {
 }
 
 function syncAccessState() {
-  const locked = !apiKey;
+  const locked = !hasTornApiKey();
   document.body.classList.toggle("locked", locked);
 
   document.querySelectorAll(".link-btn").forEach(button => {
@@ -147,7 +156,7 @@ function formatApiError(data) {
 async function loadAllData() {
   const sequence = ++loadSequence;
 
-  if (!apiKey) {
+  if (!hasTornApiKey()) {
     setText("status", "Enter API key.");
     renderNoKeyState();
     showPage("settings");
@@ -160,7 +169,7 @@ async function loadAllData() {
   const requests = [
     loadUserData(),
     loadFactionData(),
-    getData(tornUrl(2, "/faction", { selections: "rankedwars", key: apiKey })),
+    getData(tornUrl(2, "/faction", { selections: "rankedwars", key: getTornApiKey() })),
     loadFactionAttacksData(),
     loadUserHonorsData()
   ];
@@ -239,8 +248,8 @@ async function loadAllData() {
 
 async function loadUserData() {
   const [v2Result, v1Result] = await Promise.allSettled([
-    getData(tornUrl(2, "/user", { selections: "profile,bars", key: apiKey })),
-    getData(tornUrl(1, "/user/", { selections: "profile,bars", key: apiKey }))
+    getData(tornUrl(2, "/user", { selections: "profile,bars", key: getTornApiKey() })),
+    getData(tornUrl(1, "/user/", { selections: "profile,bars", key: getTornApiKey() }))
   ]);
 
   if (v2Result.status === "fulfilled") {
@@ -256,21 +265,21 @@ async function loadUserData() {
 
 async function loadUserHonorsData() {
   try {
-    return await getData(tornUrl(2, "/user/honors", { key: apiKey }));
+    return await getData(tornUrl(2, "/user/honors", { key: getTornApiKey() }));
   } catch (err) {
     try {
-      return await getData(tornUrl(2, "/user", { selections: "honors", key: apiKey }));
+      return await getData(tornUrl(2, "/user", { selections: "honors", key: getTornApiKey() }));
     } catch (fallbackErr) {
-      return getData(tornUrl(1, "/user/", { selections: "honors", key: apiKey }));
+      return getData(tornUrl(1, "/user/", { selections: "honors", key: getTornApiKey() }));
     }
   }
 }
 
 async function loadOwnBattleStats() {
-  if (!apiKey || ownBattleStats) return ownBattleStats;
+  if (!hasTornApiKey() || ownBattleStats) return ownBattleStats;
 
   try {
-    const data = await getData(tornUrl(1, "/user/", { selections: "battlestats", key: apiKey }));
+    const data = await getData(tornUrl(1, "/user/", { selections: "battlestats", key: getTornApiKey() }));
     const stats = {
       strength: Number(data.strength || 0),
       defense: Number(data.defense || data.defence || 0),
@@ -289,8 +298,8 @@ async function loadOwnBattleStats() {
 
 async function loadFactionData() {
   const [combinedResult, basicResult] = await Promise.allSettled([
-    getData(tornUrl(2, "/faction", { selections: "basic,members,chain", key: apiKey })),
-    getData(tornUrl(2, "/faction/basic", { key: apiKey }))
+    getData(tornUrl(2, "/faction", { selections: "basic,members,chain", key: getTornApiKey() })),
+    getData(tornUrl(2, "/faction/basic", { key: getTornApiKey() }))
   ]);
 
   if (combinedResult.status === "rejected" && basicResult.status === "rejected") {
@@ -310,7 +319,7 @@ function loadFactionAttacksData() {
   return getData(tornUrl(2, "/faction/attacks", {
     limit: "20",
     sort: "DESC",
-    key: apiKey
+    key: getTornApiKey()
   }));
 }
 
@@ -450,7 +459,7 @@ function loadFaction(data) {
 }
 
 function loadFactionMembers(factionId) {
-  return getData(tornUrl(2, `/faction/${encodeURIComponent(factionId)}/members`, { key: apiKey }));
+  return getData(tornUrl(2, `/faction/${encodeURIComponent(factionId)}/members`, { key: getTornApiKey() }));
 }
 
 function renderFactionMembers(members) {
@@ -972,7 +981,7 @@ async function loadEnemyFaction(enemyId) {
 }
 
 async function enrichEnemyStats(members) {
-  if (!apiKey || !members.length) return;
+  if (!hasTornApiKey() || !members.length) return;
 
   const ids = members
     .map(getPlayerId)
@@ -985,7 +994,7 @@ async function enrichEnemyStats(members) {
 
   try {
     const data = await getEmuBsData("/get-stats", {
-      key: apiKey,
+      key: getTornApiKey(),
       targets: ids.join(",")
     });
     const stats = normalizeArray(data);
@@ -1429,7 +1438,7 @@ function setTargetPreset(preset) {
 }
 
 async function searchTargets() {
-  if (!apiKey) {
+  if (!hasTornApiKey()) {
     setText("targetStatus", "Enter Torn API key in Settings first.");
     return;
   }
@@ -1481,7 +1490,7 @@ async function enrichTargetsWithBSP(targets) {
 async function searchFilteredTargets() {
   const limit = clampNumber(inputValue("targetLimit", 20), 1, 50);
   const params = {
-    key: apiKey,
+    key: getTornApiKey(),
     limit
   };
 
@@ -1539,7 +1548,7 @@ async function searchManualTargets() {
 
   try {
     return await getEmuBsData("/get-stats", {
-      key: apiKey,
+      key: getTornApiKey(),
       targets: ids.slice(0, 205).join(",")
     });
   } catch (err) {
@@ -1646,7 +1655,7 @@ async function copyTargetIds() {
 }
 
 async function searchRecruiter() {
-  if (!apiKey) {
+  if (!hasTornApiKey()) {
     setText("recruiterStatus", "Enter Torn API key in Settings first.");
     return;
   }
@@ -1671,7 +1680,7 @@ async function loadRecruiterCandidates() {
   const maxLevel = clampNumber(inputValue("recruitMaxLevel", 100), 1, 100);
   const [minActive, maxActive] = parseRange(document.getElementById("recruitActivity")?.value || "0-900");
   const params = {
-    key: apiKey,
+    key: getTornApiKey(),
     limit: Math.min(50, limit * 3),
     minlevel: minLevel,
     maxlevel: maxLevel,
@@ -1805,7 +1814,7 @@ async function copyRecruitIds() {
 }
 
 async function loadPlayerView() {
-  if (!apiKey) {
+  if (!hasTornApiKey()) {
     setText("playerViewStatus", "Enter Torn API key in Settings first.");
     return;
   }
@@ -1827,9 +1836,9 @@ async function loadPlayerView() {
 
   const [profileResult, statsResult, historyResult, flightsResult, bspResult, attacksResult] = await Promise.allSettled([
     loadPublicPlayerProfile(playerId),
-    getEmuBsData("/get-stats", { key: apiKey, targets: playerId }),
-    getEmuBsData("/get-stats-history", { key: apiKey, target: playerId, limit: historyLimit }),
-    getEmuBsData("/player-flights", { key: apiKey, target: playerId }),
+    getEmuBsData("/get-stats", { key: getTornApiKey(), targets: playerId }),
+    getEmuBsData("/get-stats-history", { key: getTornApiKey(), target: playerId, limit: historyLimit }),
+    getEmuBsData("/player-flights", { key: getTornApiKey(), target: playerId }),
     getBSPData(playerId),
     loadFactionAttacksData()
   ]);
@@ -1874,18 +1883,18 @@ async function loadPublicPlayerProfile(playerId) {
     return await getData(tornUrl(2, "/user", {
       selections: "profile",
       id: playerId,
-      key: apiKey
+      key: getTornApiKey()
     }));
   } catch (err) {
     try {
       return await getData(tornUrl(2, `/user/${encodeURIComponent(playerId)}`, {
         selections: "profile",
-        key: apiKey
+        key: getTornApiKey()
       }));
     } catch (fallbackErr) {
       return getData(tornUrl(1, `/user/${encodeURIComponent(playerId)}`, {
         selections: "profile",
-        key: apiKey
+        key: getTornApiKey()
       }));
     }
   }
@@ -1896,7 +1905,7 @@ async function enrichPlayerFactionName(profile) {
   if (profile.faction && profile.faction !== "N/A" && !/^Faction\s+\d+$/i.test(profile.faction)) return profile;
 
   try {
-    const data = await getData(tornUrl(2, `/faction/${encodeURIComponent(profile.factionId)}/basic`, { key: apiKey }));
+    const data = await getData(tornUrl(2, `/faction/${encodeURIComponent(profile.factionId)}/basic`, { key: getTornApiKey() }));
     const faction = data.basic || data.faction || data;
     return {
       ...profile,
@@ -2078,7 +2087,7 @@ function renderPlayerFlights(flights, flightsResult) {
 }
 
 async function loadFactionScout() {
-  if (!apiKey) {
+  if (!hasTornApiKey()) {
     setText("factionScoutStatus", "Enter Torn API key in Settings first.");
     return;
   }
@@ -2142,7 +2151,7 @@ function openFactionProfile() {
 
 async function loadFactionScoutData(factionId) {
   const [basicResult, membersResult] = await Promise.allSettled([
-    getData(tornUrl(2, `/faction/${encodeURIComponent(factionId)}/basic`, { key: apiKey })),
+    getData(tornUrl(2, `/faction/${encodeURIComponent(factionId)}/basic`, { key: getTornApiKey() })),
     loadFactionMembers(factionId)
   ]);
 
@@ -2169,7 +2178,7 @@ async function enrichMembersWithEmuBs(members) {
 
   try {
     const data = await getEmuBsData("/get-stats", {
-      key: apiKey,
+      key: getTornApiKey(),
       targets: ids.join(",")
     });
     const statsById = new Map(normalizeArray(data).map(entry => [String(entry.player_id || entry.id), entry]));
@@ -2287,7 +2296,7 @@ function renderFactionScoutMembers(members) {
 }
 
 async function loadActiveWars() {
-  if (!apiKey) {
+  if (!hasTornApiKey()) {
     setText("activeWarsStatus", "Enter Torn API key in Settings first.");
     return;
   }
@@ -2321,20 +2330,31 @@ async function loadActiveWars() {
 
 async function loadRankedWarsData() {
   try {
-    return await getData(tornUrl(2, "/torn/rankedwars", { key: apiKey }));
+    return await getData(tornUrl(2, "/torn/rankedwars", { key: getTornApiKey() }));
   } catch (err) {
     return getData(tornUrl(1, "/torn/", {
       selections: "rankedwars",
-      key: apiKey
+      key: getTornApiKey()
     }));
   }
 }
 
-function loadFactionWarfareData() {
-  return getData(tornUrl(2, "/faction", {
-    selections: "warfare,territorywars,chains,chain",
-    key: apiKey
-  }));
+async function loadFactionWarfareData() {
+  const [territoryResult, chainsResult, ownChainResult] = await Promise.allSettled([
+    getData(tornUrl(2, "/faction/warfare", { cat: "territory", key: getTornApiKey() })),
+    getData(tornUrl(2, "/faction/warfare", { cat: "chain", key: getTornApiKey() })),
+    getData(tornUrl(2, "/faction", { selections: "chain", key: getTornApiKey() }))
+  ]);
+
+  if (territoryResult.status === "rejected" && chainsResult.status === "rejected" && ownChainResult.status === "rejected") {
+    throw territoryResult.reason;
+  }
+
+  return {
+    territorywars: territoryResult.status === "fulfilled" ? territoryResult.value.warfare || [] : [],
+    chains: chainsResult.status === "fulfilled" ? chainsResult.value.warfare || [] : [],
+    chain: ownChainResult.status === "fulfilled" ? ownChainResult.value.chain || latestFactionChain : latestFactionChain
+  };
 }
 
 function formatWarfareLimitMessage(reason) {
@@ -2384,19 +2404,22 @@ function renderActiveWars(wars) {
 function renderTerritoryAssaults(data) {
   const wars = normalizeArray(data.warfare?.territory || data.territorywars || data.territory_wars || data.warfare || [])
     .filter(war => war && typeof war === "object")
+    .filter(war => !war.result || String(war.result).toLowerCase() === "in_progress")
     .slice(0, 25);
 
   setHtml(
     "activeTerritoryTable",
     wars.length
       ? wars.map(war => {
-        const factions = normalizeWarFactions(war.factions || war.faction || {});
+        const factions = war.aggressor || war.defender
+          ? [normalizeWarFaction(war.aggressor, war.aggressor?.id), normalizeWarFaction(war.defender, war.defender?.id)]
+          : normalizeWarFactions(war.factions || war.faction || {});
         return `
           <tr>
             <td>${escapeHtml(war.territory || war.territory_id || war.id || "-")}</td>
             <td>${factionProfileLink(factions[0])}</td>
             <td>${factionProfileLink(factions[1])}</td>
-            <td><span class="status-pill status-hosp">${escapeHtml(war.status || war.state || "Ongoing")}</span></td>
+            <td><span class="status-pill status-hosp">${escapeHtml(war.status || war.state || war.result || "Ongoing")}</span></td>
             <td>${escapeHtml(formatDateTime(war.start || war.started || war.timestamp))}</td>
           </tr>
         `;
@@ -2422,7 +2445,7 @@ function renderLiveChains(data) {
           <tr>
             <td>${faction ? factionProfileLink(faction) : escapeHtml(chain.name || "Our faction")}</td>
             <td>${escapeHtml(formatNumber(chain.current || chain.chain || chain.count || 0))}</td>
-            <td>${chain.timeout || chain.cooldown ? etaHtml(chain.timeout || chain.cooldown, "warning") : `<span class="muted">-</span>`}</td>
+            <td>${chain.timeout || chain.cooldown || chain.end ? etaHtml(chain.timeout || chain.cooldown || chain.end, "warning") : `<span class="muted">-</span>`}</td>
             <td>${escapeHtml(formatDateTime(chain.start || chain.started || chain.timestamp))}</td>
             <td><span class="status-pill status-okay">${escapeHtml(chain.state || chain.status || "Live")}</span></td>
           </tr>
@@ -2602,7 +2625,7 @@ function init() {
   setWarSortMode(warSortMode);
   syncAccessState();
 
-  if (!apiKey) {
+  if (!hasTornApiKey()) {
     showPage("settings");
     setText("status", "Enter Torn API key to unlock terminal.");
   } else {
@@ -2638,3 +2661,4 @@ Object.assign(window, {
 });
 
 init();
+
