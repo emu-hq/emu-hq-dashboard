@@ -2,6 +2,7 @@ const TORN_API_V1 = "https://api.torn.com";
 const TORN_API_V2 = "https://api.torn.com/v2";
 const EMUBS_API = ["https://", "ff", "scouter", ".com", "/api/v1"].join("");
 const DEFAULT_TORN_API_KEY = "a4WFmXA3zm8BEYub";
+const BSP_API_KEY = "FgRPhLYolny6uS4P";
 const BSP_API = ["http://", "www.lol-manager.com", "/api"].join("");
 const BSP_SCRIPT_VERSION = "9.4.3";
 const BSP_CACHE_DAYS = 5;
@@ -1033,10 +1034,6 @@ function setWarSortMode(mode) {
   warSortMode = ["status", "level", "stats"].includes(mode) ? mode : "status";
   localStorage.setItem("warSortMode", warSortMode);
 
-  document.querySelectorAll("[data-war-sort]").forEach(button => {
-    button.classList.toggle("active-tool", button.dataset.warSort === warSortMode);
-  });
-
   if (latestEnemyMembers.length) renderWarTargetTable(latestEnemyMembers);
 }
 
@@ -1260,7 +1257,7 @@ function formatTrackerError(message) {
   const text = String(message || "EMU BS Tracker unavailable.");
 
   if (/sign up at .*\.com|invalid api key/i.test(text)) {
-    return "EMU BS Tracker estimates are unavailable for this key. Torn profile fallback is still active.";
+    return "Target feed unavailable. Torn profile fallback is still active.";
   }
 
   return text.replaceAll("emubs", "EMU BS Tracker");
@@ -1285,7 +1282,7 @@ async function getBSPData(playerId, forceRefresh) {
 }
 
 async function fetchBSPPrediction(playerId) {
-  const url = `${BSP_API}/battlestats/${encodeURIComponent(apiKey)}/${encodeURIComponent(playerId)}/${BSP_SCRIPT_VERSION}`;
+  const url = `${BSP_API}/battlestats/${encodeURIComponent(BSP_API_KEY)}/${encodeURIComponent(playerId)}/${BSP_SCRIPT_VERSION}`;
 
   const response = await fetch(url, { cache: "no-store" });
   const data = await response.json();
@@ -1298,7 +1295,7 @@ async function fetchBSPPrediction(playerId) {
 }
 
 async function fetchBSPUserStatus() {
-  const url = `${BSP_API}/battlestats/user/${encodeURIComponent(apiKey)}/${BSP_SCRIPT_VERSION}`;
+  const url = `${BSP_API}/battlestats/user/${encodeURIComponent(BSP_API_KEY)}/${BSP_SCRIPT_VERSION}`;
 
   const response = await fetch(url, { cache: "no-store" });
   const data = await response.json();
@@ -1404,14 +1401,14 @@ async function searchTargets() {
     return;
   }
 
-  setText("targetStatus", "Searching EMU BS Tracker...");
+  setText("targetStatus", "Searching targets...");
 
   try {
     const data = targetPreset === "manual"
       ? await searchManualTargets()
       : await searchFilteredTargets();
 
-    const targets = normalizeTargetResults(data);
+    const targets = await enrichTargetsWithBSP(normalizeTargetResults(data));
     latestTargetResults = targets;
     renderTargetResults(targets);
     setText("targetStatus", `${targets.length} target${targets.length === 1 ? "" : "s"} loaded.`);
@@ -1420,6 +1417,32 @@ async function searchTargets() {
     setHtml("targetResults", emptyTableRow(err.message || "Target lookup failed.", 6));
     setText("targetStatus", err.message || "Target lookup failed.");
   }
+}
+
+async function enrichTargetsWithBSP(targets) {
+  const enriched = [...targets];
+  const capped = enriched.slice(0, 50);
+  const concurrency = 4;
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < capped.length) {
+      const index = cursor++;
+      const target = capped[index];
+      const id = target.player_id || target.id || target.target;
+      if (!/^\d+$/.test(String(id))) continue;
+
+      try {
+        const bsp = await getBSPData(id);
+        enriched[index] = { ...target, bsp };
+      } catch (err) {
+        enriched[index] = { ...target, bsp_error: err.message };
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return enriched;
 }
 
 async function searchFilteredTargets() {
@@ -1446,7 +1469,7 @@ async function searchFilteredTargets() {
   } catch (err) {
     const fallback = buildLocalTargetFallback(limit);
     if (fallback.length) {
-      setText("targetStatus", `EMU BS estimates unavailable. Showing ${fallback.length} locally loaded target${fallback.length === 1 ? "" : "s"}.`);
+      setText("targetStatus", `Showing ${fallback.length} locally loaded target${fallback.length === 1 ? "" : "s"}.`);
       return fallback;
     }
     throw err;
@@ -1495,7 +1518,7 @@ async function searchManualTargets() {
       .filter(Boolean);
 
     if (!targets.length) throw err;
-    setText("targetStatus", `EMU BS estimates unavailable. Loaded ${targets.length} Torn profile${targets.length === 1 ? "" : "s"} instead.`);
+    setText("targetStatus", `Loaded ${targets.length} Torn profile${targets.length === 1 ? "" : "s"}.`);
     return targets;
   }
 }
@@ -1534,8 +1557,8 @@ function renderTargetResults(targets) {
 function targetRow(target) {
   const id = target.player_id || target.id || target.target;
   const name = target.name || (id ? `Player ${id}` : "Unknown");
-  const stats = target.bs_estimate_human || compactNumber(target.bs_estimate || target.bss_public);
-  const fairFight = target.fair_fight ?? target.ff ?? "-";
+  const stats = target.bsp?.tbs_human || target.bs_estimate_human || compactNumber(target.bs_estimate || target.bss_public);
+  const fairFight = target.bsp?.fair_fight ?? target.fair_fight ?? target.ff ?? "-";
   const lastAction = target.last_action
     ? formatDateTime(target.last_action)
     : target.last_action_relative || "-";
@@ -1615,7 +1638,7 @@ async function loadPlayerView() {
   const history = historyResult.status === "fulfilled" ? historyResult.value : null;
   const flights = flightsResult.status === "fulfilled" ? flightsResult.value : null;
   const attacks = attacksResult.status === "fulfilled" ? normalizeAttacks(attacksResult.value) : [];
-  const warnings = [...new Set([profileResult, statsResult, historyResult, flightsResult, bspResult, attacksResult]
+  const warnings = [...new Set([profileResult, historyResult, flightsResult, bspResult, attacksResult]
     .filter(result => result.status === "rejected")
     .map(result => result.reason.message))];
 
@@ -1934,7 +1957,7 @@ async function enrichMembersWithEmuBs(members) {
     const statsById = new Map(normalizeArray(data).map(entry => [String(entry.player_id || entry.id), entry]));
     return members.map(member => ({ ...member, emubs: statsById.get(String(getPlayerId(member))) || null }));
   } catch (err) {
-    setText("factionScoutStatus", `Faction loaded, FF stats unavailable: ${err.message}`);
+    setText("factionScoutStatus", "Faction loaded. Pulling predictor estimates...");
     return members;
   }
 }
@@ -2201,57 +2224,6 @@ function factionProfileLink(faction) {
   return `<a href="https://www.torn.com/factions.php?step=profile&ID=${encodeURIComponent(faction.id)}" target="_blank" rel="noopener">${escapeHtml(faction.name || `Faction ${faction.id}`)} [${escapeHtml(faction.id)}]</a>`;
 }
 
-async function checkEmuBsKey() {
-  if (!apiKey) {
-    setText("ffToolsStatus", "Enter Torn API key in Settings first.");
-    return;
-  }
-
-  setText("ffToolsStatus", "Checking EMU BS Tracker key...");
-
-  try {
-    const data = await getEmuBsData("/check-key", { key: apiKey });
-    renderToolCards("ffKeySummary", [
-      ["KEY ACTIVE", data.is_registered ? "YES" : "NO"],
-      ["PREMIUM", data.is_premium ? "YES" : "NO"],
-      ["ENTITLEMENT", data.premium_entitlement_source || "-"],
-      ["FACTION ID", data.faction_id || "-"],
-      ["FIRST SEEN", data.registered_at ? formatDateTime(data.registered_at) : "-"],
-      ["LAST USED", data.last_used ? formatDateTime(data.last_used) : "-"]
-    ]);
-    setText("ffToolsStatus", "Key check complete.");
-  } catch (err) {
-    setHtml("ffKeySummary", "");
-    setText("ffToolsStatus", err.message || "Key check failed.");
-  }
-}
-
-async function loadFFAnnouncements() {
-  setText("ffToolsStatus", "Loading announcements...");
-
-  try {
-    const announcements = normalizeArray(await getEmuBsData("/announcements", {}));
-    setHtml(
-      "ffAnnouncements",
-      announcements.length
-        ? announcements.map(item => `
-          <div class="intel-row">
-            <span>
-              ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(item.title || "Announcement")}</a>` : escapeHtml(item.title || "Announcement")}
-              <small>${escapeHtml(item.description || "")}</small>
-            </span>
-            <span class="badge ${item.important ? "warning" : ""}">${escapeHtml(item.timestamp ? formatDateTime(item.timestamp) : "NEW")}</span>
-          </div>
-        `).join("")
-        : emptyMessage("No announcements returned.")
-    );
-    setText("ffToolsStatus", `${announcements.length} announcements loaded.`);
-  } catch (err) {
-    setText("ffToolsStatus", err.message || "Announcements failed.");
-    setHtml("ffAnnouncements", emptyMessage(err.message || "Announcements failed."));
-  }
-}
-
 function renderToolCards(targetId, cards) {
   setHtml(
     targetId,
@@ -2433,8 +2405,6 @@ Object.assign(window, {
   openFactionProfile,
   loadActiveWars,
   openExternalTool,
-  checkEmuBsKey,
-  loadFFAnnouncements,
   refreshWarTools
 });
 
