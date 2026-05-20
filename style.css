@@ -411,6 +411,34 @@ select{
   width:100%;
 }
 
+.lookup-dashboard{
+  margin:16px 0;
+}
+
+.lookup-profile-wrap{
+  padding-top:18px;
+}
+
+.lookup-profile-wrap h2{
+  font-size:24px;
+  margin:8px 0;
+  overflow-wrap:anywhere;
+}
+
+.lookup-profile-wrap .pfp{
+  width:92px;
+  height:92px;
+}
+
+.lookup-stats-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+
+.lookup-stats-grid .stat strong{
+  font-size:16px;
+  overflow-wrap:anywhere;
+}
+
 .data-table-wrap{
   width:100%;
   overflow-x:auto;
