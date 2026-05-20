@@ -1,10 +1,10 @@
-         <!DOCTYPE html>
+      <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260520-6" />
+  <link rel="stylesheet" href="style.css?v=20260520-8" />
 </head>
 
 <body>
@@ -208,12 +208,12 @@
           <section class="panel">
             <div class="panel-title">TARGET FINDER</div>
             <div class="panel-content">
-              <p class="scan-line">ESTIMATES VIA OFFICIAL FFSCOUTER API</p>
+              <p class="scan-line">ESTIMATES VIA EMU BS TRACKER</p>
               <div class="target-controls">
-                <button class="save-btn" data-target-preset="level" onclick="setTargetPreset('level')">LEVELLING</button>
-                <button class="save-btn" data-target-preset="respect" onclick="setTargetPreset('respect')">RESPECT</button>
-                <button class="save-btn active-tool" data-target-preset="custom" onclick="setTargetPreset('custom')">CUSTOM</button>
-                <button class="save-btn" data-target-preset="manual" onclick="setTargetPreset('manual')">MANUAL</button>
+                <button type="button" class="save-btn" data-target-preset="level" onclick="setTargetPreset('level')">LEVELLING</button>
+                <button type="button" class="save-btn" data-target-preset="respect" onclick="setTargetPreset('respect')">RESPECT</button>
+                <button type="button" class="save-btn active-tool" data-target-preset="custom" onclick="setTargetPreset('custom')">CUSTOM</button>
+                <button type="button" class="save-btn" data-target-preset="manual" onclick="setTargetPreset('manual')">MANUAL</button>
               </div>
 
               <div class="tool-grid" id="targetFilterGrid">
@@ -241,8 +241,8 @@
               </div>
 
               <div class="tool-actions">
-                <button class="save-btn" onclick="searchTargets()">SEARCH TARGETS</button>
-                <button class="save-btn" onclick="copyTargetIds()">COPY IDS</button>
+                <button type="button" class="save-btn" data-tool-action="search-targets" onclick="searchTargets()">SEARCH TARGETS</button>
+                <button type="button" class="save-btn" data-tool-action="copy-target-ids" onclick="copyTargetIds()">COPY IDS</button>
                 <span id="targetStatus" class="muted">Ready.</span>
               </div>
 
@@ -306,17 +306,18 @@
           <section class="panel">
             <div class="panel-title">PLAYER VIEW</div>
             <div class="panel-content">
-              <p class="scan-line">PLAYER ESTIMATES VIA OFFICIAL FFSCOUTER API</p>
+              <p class="scan-line">PROFILE + ESTIMATES VIA EMU BS TRACKER</p>
               <div class="tool-grid tool-grid-compact">
                 <label>PLAYER ID<input id="playerLookupId" type="text" placeholder="1844049" /></label>
                 <label>HISTORY LIMIT<input id="playerHistoryLimit" type="number" min="1" max="100" value="25" /></label>
               </div>
               <div class="tool-actions">
-                <button class="save-btn" onclick="loadPlayerView()">LOAD PLAYER</button>
-                <button class="save-btn" onclick="loadSelfPlayerView()">USE MY ID</button>
-                <button class="save-btn" onclick="openPlayerOnFFScouter()">OPEN SOURCE</button>
+                <button type="button" class="save-btn" data-tool-action="load-player" onclick="loadPlayerView()">LOAD PLAYER</button>
+                <button type="button" class="save-btn" data-tool-action="load-self-player" onclick="loadSelfPlayerView()">USE MY ID</button>
+                <button type="button" class="save-btn" onclick="openPlayerOnFFScouter()">OPEN SOURCE</button>
                 <span id="playerViewStatus" class="muted">Ready.</span>
               </div>
+              <div id="playerDashboardCard"></div>
               <div id="playerViewSummary" class="tool-cards"></div>
 
               <div class="sub-title">ESTIMATE HISTORY</div>
@@ -342,7 +343,7 @@
           <section class="panel">
             <div class="panel-title">FACTION SCOUT</div>
             <div class="panel-content">
-              <p class="scan-line">TORN ROSTER + ESTIMATES VIA OFFICIAL FFSCOUTER API</p>
+              <p class="scan-line">TORN ROSTER + ESTIMATES VIA EMU BS TRACKER</p>
               <div class="tool-grid tool-grid-compact">
                 <label>FACTION ID<input id="scoutFactionId" type="text" placeholder="34623" /></label>
                 <label>MEMBER LIMIT<input id="scoutMemberLimit" type="number" min="1" max="100" value="100" /></label>
@@ -394,9 +395,9 @@
           <section class="panel">
             <div class="panel-title">SCOUTING TOOLS</div>
             <div class="panel-content">
-              <p class="scan-line">DATA VIA OFFICIAL FFSCOUTER API; UI BY EMU HQ</p>
+              <p class="scan-line">EMU BS TRACKER CHECKS, ANNOUNCEMENTS, AND LAUNCHERS</p>
               <div class="tool-actions">
-                <button class="save-btn" onclick="checkFFScouterKey()">CHECK FF KEY</button>
+                <button class="save-btn" onclick="checkFFScouterKey()">CHECK EMUBS KEY</button>
                 <button class="save-btn" onclick="checkBSPKey()">CHECK PRIVATE PROXY</button>
                 <button class="save-btn" onclick="loadFFAnnouncements()">LOAD ANNOUNCEMENTS</button>
                 <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/')">REGISTER / HOME</button>
@@ -463,6 +464,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260520-6"></script>
+  <script src="app.js?v=20260520-8"></script>
 </body>
 </html>
