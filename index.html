@@ -1,10 +1,10 @@
-      <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260520-8" />
+  <link rel="stylesheet" href="style.css?v=20260520-9" />
 </head>
 
 <body>
@@ -134,6 +134,9 @@
 
               <div class="tool-actions">
                 <button class="save-btn" onclick="refreshWarTools()">REFRESH MEMBERS</button>
+                <button class="save-btn" data-war-sort="status" onclick="setWarSortMode('status')">STATUS FIRST</button>
+                <button class="save-btn" data-war-sort="level" onclick="setWarSortMode('level')">HIGH LEVEL</button>
+                <button class="save-btn" data-war-sort="stats" onclick="setWarSortMode('stats')">HIGH STATS</button>
                 <button class="save-btn" onclick="showPage('chain', document.querySelectorAll('.link-btn')[3])">CHAIN</button>
               </div>
 
@@ -314,11 +317,14 @@
               <div class="tool-actions">
                 <button type="button" class="save-btn" data-tool-action="load-player" onclick="loadPlayerView()">LOAD PLAYER</button>
                 <button type="button" class="save-btn" data-tool-action="load-self-player" onclick="loadSelfPlayerView()">USE MY ID</button>
-                <button type="button" class="save-btn" onclick="openPlayerOnFFScouter()">OPEN SOURCE</button>
+                <button type="button" class="save-btn" onclick="openPlayerProfile()">OPEN TORN</button>
                 <span id="playerViewStatus" class="muted">Ready.</span>
               </div>
               <div id="playerDashboardCard"></div>
               <div id="playerViewSummary" class="tool-cards"></div>
+
+              <div class="sub-title">HISTORY WITH YOU / FACTION</div>
+              <div id="playerRelationPanel" class="intel-list">No player loaded.</div>
 
               <div class="sub-title">ESTIMATE HISTORY</div>
               <div class="data-table-wrap">
@@ -352,7 +358,7 @@
                 <button class="save-btn" onclick="loadFactionScout()">LOAD FACTION</button>
                 <button class="save-btn" onclick="loadCurrentFactionScout()">CURRENT FACTION</button>
                 <button class="save-btn" onclick="loadEnemyFactionScout()">CURRENT ENEMY</button>
-                <button class="save-btn" onclick="openFactionOnFFScouter()">OPEN SOURCE</button>
+                <button class="save-btn" onclick="openFactionProfile()">OPEN TORN</button>
                 <span id="factionScoutStatus" class="muted">Ready.</span>
               </div>
               <div id="factionScoutSummary" class="tool-cards"></div>
@@ -375,16 +381,30 @@
           <section class="panel">
             <div class="panel-title">ACTIVE RANKED WARS</div>
             <div class="panel-content">
-              <p class="scan-line">TORN API LIST WITH SOURCE TOOL LAUNCHER</p>
+              <p class="scan-line">LIVE WARFARE, TERRITORY PRESSURE, AND CHAINS</p>
               <div class="tool-actions">
-                <button class="save-btn" onclick="loadActiveWars()">LOAD ACTIVE WARS</button>
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/active-ranked-wars')">OPEN SOURCE</button>
+                <button class="save-btn" onclick="loadActiveWars()">LOAD WARFARE</button>
                 <span id="activeWarsStatus" class="muted">Ready.</span>
               </div>
+              <div class="sub-title">RANKED WARS</div>
               <div class="data-table-wrap">
                 <table class="data-table">
                   <thead><tr><th>Faction A</th><th>Score</th><th>Faction B</th><th>Score</th><th>Status</th><th>Started</th></tr></thead>
                   <tbody id="activeWarsTable"><tr><td colspan="6">No wars loaded.</td></tr></tbody>
+                </table>
+              </div>
+              <div class="sub-title">TERRITORY ASSAULTS</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Territory</th><th>Faction A</th><th>Faction B</th><th>Status</th><th>Started</th></tr></thead>
+                  <tbody id="activeTerritoryTable"><tr><td colspan="5">No territory assaults loaded.</td></tr></tbody>
+                </table>
+              </div>
+              <div class="sub-title">LIVE CHAINS</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Faction</th><th>Chain</th><th>Timeout</th><th>Started</th><th>Status</th></tr></thead>
+                  <tbody id="liveChainsTable"><tr><td colspan="5">No live chains loaded.</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -395,29 +415,15 @@
           <section class="panel">
             <div class="panel-title">SCOUTING TOOLS</div>
             <div class="panel-content">
-              <p class="scan-line">EMU BS TRACKER CHECKS, ANNOUNCEMENTS, AND LAUNCHERS</p>
+              <p class="scan-line">NATIVE EMU INTEL CHECKS</p>
               <div class="tool-actions">
-                <button class="save-btn" onclick="checkFFScouterKey()">CHECK EMUBS KEY</button>
-                <button class="save-btn" onclick="checkBSPKey()">CHECK PRIVATE PROXY</button>
-                <button class="save-btn" onclick="loadFFAnnouncements()">LOAD ANNOUNCEMENTS</button>
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/')">REGISTER / HOME</button>
+                <button class="save-btn" onclick="checkEmuBsKey()">CHECK EMUBS KEY</button>
+                <button class="save-btn" onclick="loadFFAnnouncements()">LOAD BULLETINS</button>
                 <span id="ffToolsStatus" class="muted">Ready.</span>
               </div>
               <div id="ffKeySummary" class="tool-cards"></div>
 
-              <div class="sub-title">LAUNCHERS</div>
-              <div class="launcher-grid">
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/target-finder')">TARGET FINDER</button>
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/war-room')">WAR ROOM</button>
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/player-view')">PLAYER VIEWER</button>
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/faction-activity-comparison')">FACTION ACTIVITY</button>
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/faction-profile')">FACTION PROFILE</button>
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/top-battlestats')">BS LEADERBOARD</button>
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/top-activity')">ACTIVITY LEADERBOARD</button>
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/active-ranked-wars')">ACTIVE WARS</button>
-              </div>
-
-              <div class="sub-title">ANNOUNCEMENTS</div>
+              <div class="sub-title">BULLETINS</div>
               <div id="ffAnnouncements" class="intel-list">No announcements loaded.</div>
             </div>
           </section>
@@ -428,7 +434,6 @@
             <div class="panel-title">SETTINGS</div>
             <div class="panel-content">
             <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
-            <input id="bspProxyUrl" type="password" placeholder="Optional private predictor proxy URL" />
             <button onclick="saveKey()" class="save-btn">SAVE SETTINGS</button>
             <div id="status">Waiting for API key...</div>
           </div>
@@ -464,6 +469,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260520-8"></script>
+  <script src="app.js?v=20260520-9"></script>
 </body>
 </html>
