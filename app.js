@@ -3,7 +3,7 @@ const TORN_API_V2 = "https://api.torn.com/v2";
 const FFSCOUTER_API = "https://ffscouter.com/api/v1";
 const BSP_SCRIPT_VERSION = "9.4.3";
 const BSP_CACHE_DAYS = 5;
-const BUILD_VERSION = "2026-05-20-war-travel-4";
+const BUILD_VERSION = "2026-05-20-emubs-player-5";
 const POLL_INTERVAL_MS = 30000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
@@ -158,10 +158,11 @@ async function loadAllData() {
     loadUserData(),
     loadFactionData(),
     getData(tornUrl(2, "/faction", { selections: "rankedwars", key: apiKey })),
-    loadFactionAttacksData()
+    loadFactionAttacksData(),
+    loadUserHonorsData()
   ];
 
-  const [userResult, factionResult, warsResult, attacksResult] =
+  const [userResult, factionResult, warsResult, attacksResult, honorsResult] =
     await Promise.allSettled(requests);
 
   if (sequence !== loadSequence) return;
@@ -171,7 +172,7 @@ async function loadAllData() {
   let connected = false;
 
   if (userResult.status === "fulfilled") {
-    loadUser(userResult.value);
+    loadUser(userResult.value, honorsResult.status === "fulfilled" ? honorsResult.value : null);
     loadOwnBattleStats();
     connected = true;
   } else {
@@ -234,10 +235,31 @@ async function loadAllData() {
 }
 
 async function loadUserData() {
+  const [v2Result, v1Result] = await Promise.allSettled([
+    getData(tornUrl(2, "/user", { selections: "profile,bars", key: apiKey })),
+    getData(tornUrl(1, "/user/", { selections: "profile,bars", key: apiKey }))
+  ]);
+
+  if (v2Result.status === "fulfilled") {
+    return {
+      ...v2Result.value,
+      legacyProfile: v1Result.status === "fulfilled" ? v1Result.value : null
+    };
+  }
+
+  if (v1Result.status === "fulfilled") return v1Result.value;
+  throw v2Result.reason;
+}
+
+async function loadUserHonorsData() {
   try {
-    return await getData(tornUrl(2, "/user", { selections: "profile,bars", key: apiKey }));
+    return await getData(tornUrl(2, "/user/honors", { key: apiKey }));
   } catch (err) {
-    return getData(tornUrl(1, "/user/", { selections: "profile,bars", key: apiKey }));
+    try {
+      return await getData(tornUrl(2, "/user", { selections: "honors", key: apiKey }));
+    } catch (fallbackErr) {
+      return getData(tornUrl(1, "/user/", { selections: "honors", key: apiKey }));
+    }
   }
 }
 
@@ -309,6 +331,7 @@ function renderNoKeyState() {
   setHtml("recentAttacks", emptyMessage("Enter API key in Settings."));
   setHtml("chainPanel", emptyMessage("Enter API key in Settings."));
   setHtml("targetResults", emptyTableRow("Enter API key in Settings.", 6));
+  setHtml("playerDashboardCard", "");
   setHtml("playerViewSummary", "");
   setHtml("playerHistoryTable", emptyTableRow("Enter API key in Settings.", 4));
   setHtml("playerFlightsTable", emptyTableRow("Enter API key in Settings.", 5));
@@ -320,8 +343,9 @@ function renderNoKeyState() {
   setHtml("ffAnnouncements", emptyMessage("Enter API key in Settings."));
 }
 
-function loadUser(user) {
+function loadUser(user, honorsData) {
   const profile = user.profile || user.basic || user;
+  const legacyProfile = user.legacyProfile?.profile || user.legacyProfile || {};
   const bars = user.bars || profile.bars || {};
   activePlayerId = profile.player_id ?? profile.id ?? user.player_id ?? user.id ?? activePlayerId;
 
@@ -340,7 +364,7 @@ function loadUser(user) {
 
   setText("levelDay", lvlDay);
   setText("frenemiesValue", `+${profile.friends ?? user.friends ?? 0} / ${profile.enemies ?? user.enemies ?? 0}`);
-  setText("honorValue", profile.honor_id ?? profile.honor ?? user.honor_id ?? user.honor ?? "-");
+  setText("honorValue", formatNumber(legacyProfile.honor_id ?? legacyProfile.honor ?? profile.honor_id ?? user.honor_id ?? profile.honor ?? user.honor ?? extractHonorCount(honorsData) ?? profile.honors ?? user.honors ?? "-"));
   setText("awardsValue", profile.awards ?? user.awards ?? "-");
   setText("karmaValue", profile.karma ?? user.karma ?? "-");
   setText("forumValue", profile.forum_posts ?? user.forum_posts ?? "-");
@@ -358,6 +382,32 @@ function loadUser(user) {
       pfp.src = PLACEHOLDER_PFP;
     };
   }
+}
+
+function extractHonorCount(data) {
+  if (!data) return null;
+
+  const direct = data.honors_count ?? data.honor_count ?? data.total_honors ?? data.total;
+  if (Number.isFinite(Number(direct))) return Number(direct);
+
+  const honors = data.honors ?? data.honor;
+  if (Number.isFinite(Number(honors))) return Number(honors);
+  if (Array.isArray(honors)) return honors.length;
+
+  if (honors && typeof honors === "object") {
+    const values = Object.values(honors);
+    const achieved = values.filter(item => {
+      if (!item || typeof item !== "object") return true;
+      if ("achieved" in item) return Boolean(item.achieved);
+      if ("unlocked" in item) return Boolean(item.unlocked);
+      if ("awarded" in item) return Boolean(item.awarded);
+      if ("timestamp" in item) return Boolean(item.timestamp);
+      return true;
+    });
+    return achieved.length;
+  }
+
+  return null;
 }
 
 function formatBar(bar) {
@@ -1167,14 +1217,24 @@ async function getFFScouterData(endpoint, params) {
   try {
     data = await response.json();
   } catch (err) {
-    throw new Error(`FFScouter HTTP ${response.status}`);
+    throw new Error(`EMU BS Tracker HTTP ${response.status}`);
   }
 
   if (!response.ok || data?.error) {
-    throw new Error(data?.error || data?.message || `FFScouter HTTP ${response.status}`);
+    throw new Error(formatTrackerError(data?.error || data?.message || `EMU BS Tracker HTTP ${response.status}`));
   }
 
   return data;
+}
+
+function formatTrackerError(message) {
+  const text = String(message || "EMU BS Tracker unavailable.");
+
+  if (/sign up at ffscouter\.com|invalid api key/i.test(text)) {
+    return "EMU BS Tracker key is not registered yet. Use REGISTER / HOME, then run CHECK EMUBS KEY.";
+  }
+
+  return text.replaceAll("FFScouter", "EMU BS Tracker").replaceAll("ffscouter.com", "the source service");
 }
 
 async function getBSPData(playerId, forceRefresh) {
@@ -1333,7 +1393,7 @@ async function searchTargets() {
     return;
   }
 
-  setText("targetStatus", "Searching estimate source...");
+  setText("targetStatus", "Searching EMU BS Tracker...");
 
   try {
     const data = targetPreset === "manual"
@@ -1373,17 +1433,40 @@ function searchFilteredTargets() {
   return getFFScouterData("/get-targets", params);
 }
 
-function searchManualTargets() {
+async function searchManualTargets() {
   const ids = parseTargetIds(document.getElementById("manualTargetIds")?.value || "");
 
   if (!ids.length) {
     throw new Error("Paste at least one player ID.");
   }
 
-  return getFFScouterData("/get-stats", {
-    key: apiKey,
-    targets: ids.slice(0, 205).join(",")
-  });
+  try {
+    return await getFFScouterData("/get-stats", {
+      key: apiKey,
+      targets: ids.slice(0, 205).join(",")
+    });
+  } catch (err) {
+    const fallback = await Promise.allSettled(ids.slice(0, 50).map(loadPublicPlayerProfile));
+    const targets = fallback
+      .map((result, index) => result.status === "fulfilled"
+        ? profileToManualTarget(normalizePlayerProfile(result.value, ids[index]))
+        : null)
+      .filter(Boolean);
+
+    if (!targets.length) throw err;
+    setText("targetStatus", `EMU BS estimates unavailable. Loaded ${targets.length} Torn profile${targets.length === 1 ? "" : "s"} instead.`);
+    return targets;
+  }
+}
+
+function profileToManualTarget(profile) {
+  return {
+    player_id: profile.id,
+    name: profile.name,
+    level: profile.level,
+    last_action_relative: profile.lastAction,
+    source: "torn-profile"
+  };
 }
 
 function parseTargetIds(value) {
@@ -1471,6 +1554,7 @@ async function loadPlayerView() {
   }
 
   setText("playerViewStatus", "Loading player...");
+  setHtml("playerDashboardCard", "");
   setHtml("playerViewSummary", "");
   setHtml("playerHistoryTable", emptyTableRow("Loading history...", 4));
   setHtml("playerFlightsTable", emptyTableRow("Checking flights...", 5));
@@ -1480,17 +1564,18 @@ async function loadPlayerView() {
     getFFScouterData("/get-stats", { key: apiKey, targets: playerId }),
     getFFScouterData("/get-stats-history", { key: apiKey, target: playerId, limit: historyLimit }),
     getFFScouterData("/player-flights", { key: apiKey, target: playerId }),
-    getBSPData(playerId)
+    bspProxyUrl ? getBSPData(playerId) : Promise.resolve(null)
   ]);
 
   const profile = profileResult.status === "fulfilled" ? normalizePlayerProfile(profileResult.value, playerId) : null;
   const stats = statsResult.status === "fulfilled" ? normalizeTargetResults(statsResult.value)[0] : null;
   const history = historyResult.status === "fulfilled" ? historyResult.value : null;
   const flights = flightsResult.status === "fulfilled" ? flightsResult.value : null;
-  const warnings = [profileResult, statsResult, historyResult, flightsResult, bspResult]
+  const warnings = [...new Set([profileResult, statsResult, historyResult, flightsResult, bspResult]
     .filter(result => result.status === "rejected")
-    .map(result => result.reason.message);
+    .map(result => result.reason.message))];
 
+  renderPlayerDashboardCard(playerId, profile, stats, bspResult.status === "fulfilled" ? bspResult.value : null, flights);
   renderPlayerViewSummary(playerId, profile, stats, bspResult.status === "fulfilled" ? bspResult.value : null, flightsResult);
   renderPlayerHistory(history);
   renderPlayerFlights(flights, flightsResult);
@@ -1514,30 +1599,107 @@ function openPlayerOnFFScouter() {
   openExternalTool(playerId ? `https://ffscouter.com/player-view?player_id=${encodeURIComponent(playerId)}` : "https://ffscouter.com/player-view");
 }
 
-function loadPublicPlayerProfile(playerId) {
-  return getData(tornUrl(2, `/user/${encodeURIComponent(playerId)}`, {
-    selections: "profile",
-    key: apiKey
-  }));
+async function loadPublicPlayerProfile(playerId) {
+  try {
+    return await getData(tornUrl(2, "/user", {
+      selections: "profile",
+      id: playerId,
+      key: apiKey
+    }));
+  } catch (err) {
+    try {
+      return await getData(tornUrl(2, `/user/${encodeURIComponent(playerId)}`, {
+        selections: "profile",
+        key: apiKey
+      }));
+    } catch (fallbackErr) {
+      return getData(tornUrl(1, `/user/${encodeURIComponent(playerId)}`, {
+        selections: "profile",
+        key: apiKey
+      }));
+    }
+  }
 }
 
 function normalizePlayerProfile(data, playerId) {
   const profile = data.profile || data.basic || data;
+  const faction = profile.faction && typeof profile.faction === "object" ? profile.faction : {};
+  const status = profile.status && typeof profile.status === "object" ? profile.status : {};
+  const lastAction = profile.last_action && typeof profile.last_action === "object" ? profile.last_action : {};
+
   return {
     id: profile.player_id || profile.id || playerId,
     name: profile.name || `Player ${playerId}`,
+    image: profile.image || profile.profile_image || profile.avatar || PLACEHOLDER_PFP,
     level: profile.level ?? "-",
-    faction: profile.faction?.name || profile.faction_name || profile.faction?.faction_name || "N/A",
-    lastAction: profile.last_action?.relative || profile.last_action?.status || profile.last_action || "-"
+    rank: profile.rank || "-",
+    age: profile.age || 0,
+    awards: profile.awards ?? "-",
+    karma: profile.karma ?? "-",
+    forumPosts: profile.forum_posts ?? profile.forum_posts_count ?? "-",
+    friends: profile.friends ?? 0,
+    enemies: profile.enemies ?? 0,
+    faction: faction.name || profile.faction_name || faction.faction_name || "N/A",
+    factionId: faction.id || faction.faction_id || profile.faction_id || null,
+    lastAction: lastAction.relative || lastAction.status || profile.last_action || "-",
+    status: status.description || status.state || (typeof profile.status === "string" ? profile.status : "-"),
+    statusState: status.state || "",
+    statusUntil: Number(status.until || 0),
+    job: profile.job?.company_name || profile.job?.position || (typeof profile.job === "string" ? profile.job : "-"),
+    property: profile.property?.name || (typeof profile.property === "string" ? profile.property : "-")
   };
+}
+
+function renderPlayerDashboardCard(playerId, profile, stats, bsp, flights) {
+  const estimate = stats?.bs_estimate_human || bsp?.tbs_human || compactNumber(stats?.bs_estimate || stats?.bss_public);
+  const profileUrlHtml = `<a href="${profileUrl(playerId)}" target="_blank" rel="noopener">${escapeHtml(profile?.name || `Player ${playerId}`)} [${escapeHtml(playerId)}]</a>`;
+  const factionLabel = profile?.faction && profile.faction !== "N/A"
+    ? profile.faction
+    : profile?.factionId ? `Faction ${profile.factionId}` : "N/A";
+  const factionText = profile?.factionId
+    ? `<a href="https://www.torn.com/factions.php?step=profile&ID=${encodeURIComponent(profile.factionId)}" target="_blank" rel="noopener">${escapeHtml(factionLabel)} [${escapeHtml(profile.factionId)}]</a>`
+    : escapeHtml(factionLabel);
+  const currentFlight = flights?.current;
+  const flightText = currentFlight?.status_description || "No active flight";
+
+  setHtml("playerDashboardCard", `
+    <section class="api-window lookup-dashboard">
+      <div class="api-header">
+        <span>&gt; EMU PLAYER SCAN</span>
+        <div class="window-buttons"><span>-</span><span>x</span></div>
+      </div>
+      <div class="profile-wrap lookup-profile-wrap">
+        <img class="pfp" src="${escapeHtml(profile?.image || PLACEHOLDER_PFP)}" alt="Player profile" onerror="this.src='${PLACEHOLDER_PFP}'" />
+        <h2>${profileUrlHtml}</h2>
+        <div class="rank-tag">${escapeHtml(profile?.rank || "-")}</div>
+        <div class="stats-grid lookup-stats-grid">
+          <div class="stat"><span>LEVEL</span><strong>${escapeHtml(profile?.level ?? "-")}</strong></div>
+          <div class="stat"><span>AGE</span><strong>${escapeHtml(profile?.age ? `${Math.floor(Number(profile.age) / 365)} years` : "-")}</strong></div>
+          <div class="stat"><span>FACTION</span><strong>${factionText}</strong></div>
+          <div class="stat"><span>STATUS</span><strong>${escapeHtml(profile?.status || "-")}</strong></div>
+          <div class="stat"><span>LAST ACTION</span><strong>${escapeHtml(profile?.lastAction || "-")}</strong></div>
+          <div class="stat"><span>FAIR FIGHT</span><strong>${escapeHtml(stats?.fair_fight ?? bsp?.fair_fight ?? "-")}</strong></div>
+          <div class="stat"><span>BS ESTIMATE</span><strong>${escapeHtml(estimate)}</strong></div>
+          <div class="stat"><span>BSS PUBLIC</span><strong>${escapeHtml(formatNumber(stats?.bss_public))}</strong></div>
+          <div class="stat"><span>AWARDS</span><strong>${escapeHtml(profile?.awards ?? "-")}</strong></div>
+          <div class="stat"><span>KARMA</span><strong>${escapeHtml(profile?.karma ?? "-")}</strong></div>
+          <div class="stat"><span>FORUM</span><strong>${escapeHtml(profile?.forumPosts ?? "-")}</strong></div>
+          <div class="stat"><span>FLIGHT</span><strong>${escapeHtml(flightText)}</strong></div>
+        </div>
+      </div>
+    </section>
+  `);
 }
 
 function renderPlayerViewSummary(playerId, profile, stats, bsp, flightsResult) {
   const latestEstimate = stats?.bs_estimate_human || bsp?.tbs_human || compactNumber(stats?.bs_estimate || stats?.bss_public);
+  const factionLabel = profile?.faction && profile.faction !== "N/A"
+    ? profile.faction
+    : profile?.factionId ? `Faction ${profile.factionId}` : "N/A";
   const cards = [
     ["PLAYER", `${profile?.name || `Player ${playerId}`} [${playerId}]`],
     ["LEVEL", profile?.level ?? "-"],
-    ["FACTION", profile?.faction || "N/A"],
+    ["FACTION", factionLabel],
     ["FAIR FIGHT", stats?.fair_fight ?? "-"],
     ["LATEST ESTIMATE", latestEstimate],
     ["BSS PUBLIC", formatNumber(stats?.bss_public)],
@@ -1883,7 +2045,7 @@ async function checkFFScouterKey() {
     return;
   }
 
-  setText("ffToolsStatus", "Checking FFScouter API key...");
+  setText("ffToolsStatus", "Checking EMU BS Tracker key...");
 
   try {
     const data = await getFFScouterData("/check-key", { key: apiKey });
@@ -2112,5 +2274,26 @@ function init() {
   setInterval(updateCountdowns, 1000);
   setInterval(loadAllData, POLL_INTERVAL_MS);
 }
+
+Object.assign(window, {
+  showPage,
+  saveKey,
+  setTargetPreset,
+  searchTargets,
+  copyTargetIds,
+  loadPlayerView,
+  loadSelfPlayerView,
+  openPlayerOnFFScouter,
+  loadFactionScout,
+  loadCurrentFactionScout,
+  loadEnemyFactionScout,
+  openFactionOnFFScouter,
+  loadActiveWars,
+  openExternalTool,
+  checkFFScouterKey,
+  checkBSPKey,
+  loadFFAnnouncements,
+  refreshWarTools
+});
 
 init();
