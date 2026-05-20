@@ -1,115 +1,468 @@
+         <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260520-2" />
-  <link rel="stylesheet" href="style.css?v=20260520-3" />
+  <link rel="stylesheet" href="style.css?v=20260520-6" />
 </head>
+
+<body>
+  <div class="terminal">
+    <header class="topbar">
       <div class="top-left">
-        <h1>EMU HQ TERMINAL v1.5</h1>
         <h1>EMU HQ TERMINAL v1.6</h1>
         <p>&gt; EMULATED MILITARY INTELLIGENCE</p>
-        <div id="dashboard" class="page">
-        <div class="center-title">EMU HQ TERMINAL v1.5</div>
-        <div class="center-title">EMU HQ TERMINAL v1.6</div>
+      </div>
 
-            <div class="panel-content">
-              <p class="scan-line">STATS, HISTORY, AND PREMIUM FLIGHT DATA WHERE AVAILABLE</p>
-              <p class="scan-line">FFSCOUTER + BSP ESTIMATES WHERE KEYS ARE AVAILABLE</p>
-              <div class="tool-grid tool-grid-compact">
-            <div class="panel-content">
-              <p class="scan-line">PROFILE + MEMBER ESTIMATES USING TORN ROSTER AND FFSCOUTER STATS</p>
-              <p class="scan-line">PROFILE + MEMBER ESTIMATES USING TORN ROSTER, FFSCOUTER, AND BSP</p>
-              <div class="tool-grid tool-grid-compact">
-                <button class="save-btn" onclick="checkFFScouterKey()">CHECK KEY</button>
-                <button class="save-btn" onclick="checkBSPKey()">CHECK BSP</button>
-                <button class="save-btn" onclick="loadFFAnnouncements()">LOAD ANNOUNCEMENTS</button>
-            <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
-            <input id="bspApiKey" type="password" placeholder="Enter BSP API Key (private, optional)" />
-            <button onclick="saveKey()" class="save-btn">SAVE API KEY</button>
+      <div class="top-center">
+        CLASSIFIED - FOR HQ USE ONLY
+      </div>
 
-  <script src="app.js?v=20260520-2"></script>
-  <script src="app.js?v=20260520-3"></script>
-</body>
-            <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
-            <input id="bspApiKey" type="password" placeholder="Enter BSP API Key (private, optional)" />
-            <input id="bspProxyUrl" type="password" placeholder="Enter BSP Proxy URL (keeps subscription key hidden)" />
-            <input id="bspApiKey" type="password" placeholder="Enter BSP API Key (local only, optional)" />
-            <button onclick="saveKey()" class="save-btn">SAVE API KEY</button>
-            <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
-            <input id="bspProxyUrl" type="password" placeholder="Enter BSP Proxy URL (keeps subscription key hidden)" />
-            <input id="bspApiKey" type="password" placeholder="Enter BSP API Key (local only, optional)" />
-            <button onclick="saveKey()" class="save-btn">SAVE API KEY</button>
-            <input id="bspProxyUrl" type="password" placeholder="Enter BSP Proxy URL" />
-            <button onclick="saveKey()" class="save-btn">SAVE SETTINGS</button>
-            <div id="status">Waiting for API key...</div>
-  <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260520-3" />
-  <link rel="stylesheet" href="style.css?v=20260520-4" />
-</head>
+      <div class="top-right">
+        <p>CONNECTION: SECURE *</p>
+        <p>TIME: <span id="clock">Loading...</span></p>
+        <p>DATE: <span id="date">Loading...</span></p>
+      </div>
+    </header>
 
-  <script src="app.js?v=20260520-3"></script>
-  <script src="app.js?v=20260520-4"></script>
-</body>
+    <main class="main-layout">
+      <aside class="left-column">
+        <section class="panel">
+          <div class="panel-title">FACTION OVERVIEW</div>
+          <div class="panel-content">
+            <p>FACTION: <span id="factionName">Loading...</span></p>
+            <p>RANK: <span id="factionRank">Loading...</span></p>
+            <p>RESPECT: <span id="factionRespect">Loading...</span></p>
+            <p>MEMBERS: <span id="factionMembers">Loading...</span></p>
+            <p>WAR STATUS: <span id="warStatus">Loading...</span></p>
+            <p>CHAIN: <span id="chainValue">Loading...</span></p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">QUICK LINKS</div>
+          <div class="panel-content links">
+            <button class="link-btn" onclick="showPage('dashboard', this)">&gt; DASHBOARD</button>
+            <button class="link-btn" onclick="showPage('members', this)">&gt; MEMBERS</button>
+            <button class="link-btn" onclick="showPage('war', this)">&gt; WAR</button>
+            <button class="link-btn" onclick="showPage('chain', this)">&gt; CHAIN</button>
+            <button class="link-btn" onclick="showPage('territory', this)">&gt; TERRITORY</button>
+            <button class="link-btn" onclick="showPage('hospital', this)">&gt; HOSPITAL</button>
+            <button class="link-btn" onclick="showPage('targets', this)">&gt; TARGET FINDER</button>
+            <button class="link-btn" onclick="showPage('playerView', this)">&gt; PLAYER VIEW</button>
+            <button class="link-btn" onclick="showPage('factionScout', this)">&gt; FACTION SCOUT</button>
             <button class="link-btn" onclick="showPage('activeWars', this)">&gt; ACTIVE WARS</button>
-            <button class="link-btn" onclick="showPage('ffTools', this)">&gt; FF TOOLS</button>
             <button class="link-btn" onclick="showPage('ffTools', this)">&gt; SCOUTING TOOLS</button>
             <button class="link-btn" onclick="showPage('jobpoints', this)">&gt; JOB POINTS</button>
+            <button class="link-btn" onclick="showPage('settings', this)">&gt; SETTINGS</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">WAR TIMER</div>
+          <div class="panel-content timer-box">
+            <div class="timer-label">TIME REMAINING</div>
+            <div class="timer" id="warTimer">No active war</div>
+            <div class="timer-small">DAYS &nbsp;&nbsp; HRS &nbsp;&nbsp; MINS &nbsp;&nbsp; SECS</div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="center-column">
+        <div id="dashboard" class="page">
+        <div class="center-title">EMU HQ TERMINAL v1.6</div>
+
+          <section class="api-window">
+            <div class="api-header">
+              <span>&gt; TORN API CONNECTION</span>
+              <div class="window-buttons">
+                <span>-</span>
+                <span>x</span>
+              </div>
+            </div>
+
+            <div class="profile-wrap">
+              <img id="playerPfp" class="pfp" src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png" alt="Player profile" />
+
+              <h2 id="playerName">Loading...</h2>
+              <div id="playerId">[Loading]</div>
+
+              <div class="user-bars">
+                <div class="bar-box">
+                  ENERGY
+                  <strong id="energyValue">-</strong>
+                </div>
+
+                <div class="bar-box">
+                  NERVE
+                  <strong id="nerveValue">-</strong>
+                </div>
+              </div>
+
+              <div class="rank-tag" id="playerRank">Loading...</div>
+
+              <div class="stats-grid">
+                <div class="stat"><span>LEVEL</span><strong id="playerLevel">-</strong></div>
+                <div class="stat"><span>AGE</span><strong id="playerAge">-</strong></div>
+                <div class="stat"><span>LVL/DAY</span><strong id="levelDay">-</strong></div>
+                <div class="stat"><span>FRENEMIES</span><strong id="frenemiesValue">+0 / 0</strong></div>
+                <div class="stat"><span>HONOR</span><strong id="honorValue">-</strong></div>
+                <div class="stat"><span>AWARDS</span><strong id="awardsValue">-</strong></div>
+                <div class="stat"><span>KARMA</span><strong id="karmaValue">-</strong></div>
+                <div class="stat"><span>FORUM</span><strong id="forumValue">-</strong></div>
+              </div>
+
+              <div class="connection-status">LOCKED CONNECTION SECURE</div>
+            </div>
+          </section>
+        </div>
+
+        <div id="members" class="page">
           <section class="panel">
-            <div class="panel-title">FFSCOUTER TARGET FINDER</div>
+            <div class="panel-title">ONLINE MEMBERS</div>
+            <div class="panel-content intel-list" id="onlineMembers">Loading...</div>
+          </section>
+        </div>
+
+        <div id="war" class="page">
+          <section class="panel">
+            <div class="panel-title">RETALS / WAR</div>
+            <div class="panel-content">
+              <p class="scan-line">LAST CHECKED: <span id="warLastChecked">-</span></p>
+              <div id="warOverview" class="intel-list">Loading...</div>
+
+              <div class="tool-actions">
+                <button class="save-btn" onclick="refreshWarTools()">REFRESH MEMBERS</button>
+                <button class="save-btn" onclick="showPage('chain', document.querySelectorAll('.link-btn')[3])">CHAIN</button>
+              </div>
+
+              <div class="sub-title">ENEMY TARGETS</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Lvl</th>
+                      <th>Stats</th>
+                      <th>Desc</th>
+                      <th>ETA</th>
+                      <th>Hit</th>
+                    </tr>
+                  </thead>
+                  <tbody id="warTargetsTable">
+                    <tr><td colspan="6">Waiting for war data.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="sub-title">ENEMY HOSPITAL</div>
+              <div id="enemyHospitalList" class="intel-list">Waiting for war data.</div>
+            </div>
+          </section>
+        </div>
+
+        <div id="chain" class="page">
+          <section class="panel">
+            <div class="panel-title">CHAIN</div>
+            <div class="panel-content" id="chainPanel">Loading...</div>
+          </section>
+        </div>
+
+        <div id="territory" class="page">
+          <section class="panel">
+            <div class="panel-title">TERRITORY</div>
+            <div class="panel-content">Territory tracker coming soon.</div>
+          </section>
+        </div>
+
+        <div id="hospital" class="page">
+          <section class="panel">
+            <div class="panel-title">FACTION HOSPITAL</div>
+            <div class="panel-content">
+              <p class="scan-line">SORTED BY RELEASE TIME</p>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Lvl</th>
+                      <th>Status</th>
+                      <th>Reason</th>
+                      <th>ETA</th>
+                      <th>Open</th>
+                    </tr>
+                  </thead>
+                  <tbody id="hospitalTable">
+                    <tr><td colspan="6">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="sub-title">DETAILS</div>
+              <div class="intel-list" id="hospitalMembers">Loading...</div>
+            </div>
+          </section>
+        </div>
+
+        <div id="targets" class="page">
+          <section class="panel">
             <div class="panel-title">TARGET FINDER</div>
             <div class="panel-content">
-              <p class="scan-line">USES YOUR TORN API KEY IF REGISTERED WITH FFSCOUTER</p>
               <p class="scan-line">ESTIMATES VIA OFFICIAL FFSCOUTER API</p>
               <div class="target-controls">
+                <button class="save-btn" data-target-preset="level" onclick="setTargetPreset('level')">LEVELLING</button>
+                <button class="save-btn" data-target-preset="respect" onclick="setTargetPreset('respect')">RESPECT</button>
+                <button class="save-btn active-tool" data-target-preset="custom" onclick="setTargetPreset('custom')">CUSTOM</button>
+                <button class="save-btn" data-target-preset="manual" onclick="setTargetPreset('manual')">MANUAL</button>
+              </div>
+
+              <div class="tool-grid" id="targetFilterGrid">
+                <label>MIN LEVEL<input id="targetMinLevel" type="number" min="1" max="100" value="1" /></label>
+                <label>MAX LEVEL<input id="targetMaxLevel" type="number" min="1" max="100" value="100" /></label>
+                <label>MIN FF<input id="targetMinFF" type="number" min="1" step="0.1" value="1" /></label>
+                <label>MAX FF<input id="targetMaxFF" type="number" min="1" step="0.1" value="3" /></label>
+                <label>LIMIT<input id="targetLimit" type="number" min="1" max="50" value="20" /></label>
+                <label>INACTIVE
+                  <select id="targetInactive">
+                    <option value="1">TRUE</option>
+                    <option value="0">FALSE</option>
+                  </select>
+                </label>
+                <label>FACTIONLESS
+                  <select id="targetFactionless">
+                    <option value="0">FALSE</option>
+                    <option value="1">TRUE</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="tool-grid manual-targets" id="manualTargetGrid">
+                <label>PLAYER IDS<input id="manualTargetIds" type="text" placeholder="12345, 67890" /></label>
+              </div>
+
+              <div class="tool-actions">
+                <button class="save-btn" onclick="searchTargets()">SEARCH TARGETS</button>
+                <button class="save-btn" onclick="copyTargetIds()">COPY IDS</button>
+                <span id="targetStatus" class="muted">Ready.</span>
+              </div>
+
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Action</th>
+                      <th>Lvl</th>
+                      <th>Fair Fight</th>
+                      <th>Stats</th>
+                      <th>Last Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="targetResults">
+                    <tr><td colspan="6">No targets loaded.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="jobpoints" class="page">
           <section class="panel">
-            <div class="panel-title">FFSCOUTER PLAYER VIEW</div>
+            <div class="panel-title">JOB POINTS</div>
+            <div class="panel-content">
+              <div class="data-table-wrap">
+                <table class="data-table compact-table">
+                  <thead><tr><th>Private Companies</th><th>Points</th></tr></thead>
+                  <tbody>
+                    <tr><td>Adult Novelties</td><td>9</td></tr>
+                    <tr><td>Television Network</td><td>190</td></tr>
+                    <tr><td>Property Broker</td><td>150</td></tr>
+                    <tr><td>Music Store</td><td>225</td></tr>
+                    <tr><td>Restaurant</td><td>30</td></tr>
+                    <tr><td>Ladies Strip Club</td><td>60</td></tr>
+                    <tr><td>Private Security Firm</td><td>237</td></tr>
+                    <tr><td>Mining Corporation</td><td>352</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table compact-table">
+                  <thead><tr><th>Torn City Jobs</th><th>Points</th></tr></thead>
+                  <tbody>
+                    <tr><td>Medical</td><td>3</td></tr>
+                    <tr><td>Casino</td><td>5</td></tr>
+                    <tr><td>Education</td><td>5</td></tr>
+                    <tr><td>Law</td><td>5</td></tr>
+                    <tr><td>Grocer</td><td>5</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="playerView" class="page">
+          <section class="panel">
             <div class="panel-title">PLAYER VIEW</div>
             <div class="panel-content">
-              <p class="scan-line">FFSCOUTER + BSP ESTIMATES WHERE KEYS ARE AVAILABLE</p>
               <p class="scan-line">PLAYER ESTIMATES VIA OFFICIAL FFSCOUTER API</p>
               <div class="tool-grid tool-grid-compact">
+                <label>PLAYER ID<input id="playerLookupId" type="text" placeholder="1844049" /></label>
+                <label>HISTORY LIMIT<input id="playerHistoryLimit" type="number" min="1" max="100" value="25" /></label>
+              </div>
+              <div class="tool-actions">
+                <button class="save-btn" onclick="loadPlayerView()">LOAD PLAYER</button>
                 <button class="save-btn" onclick="loadSelfPlayerView()">USE MY ID</button>
-                <button class="save-btn" onclick="openPlayerOnFFScouter()">OPEN FFSCOUTER</button>
                 <button class="save-btn" onclick="openPlayerOnFFScouter()">OPEN SOURCE</button>
                 <span id="playerViewStatus" class="muted">Ready.</span>
+              </div>
+              <div id="playerViewSummary" class="tool-cards"></div>
+
+              <div class="sub-title">ESTIMATE HISTORY</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Time</th><th>Estimate</th><th>BSS Public</th><th>Source</th></tr></thead>
+                  <tbody id="playerHistoryTable"><tr><td colspan="4">No player loaded.</td></tr></tbody>
+                </table>
+              </div>
+
+              <div class="sub-title">FLIGHT TRACKER</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Trip</th><th>Method</th><th>Earliest</th><th>Latest</th><th>Notes</th></tr></thead>
+                  <tbody id="playerFlightsTable"><tr><td colspan="5">No player loaded.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="factionScout" class="page">
           <section class="panel">
-            <div class="panel-title">FFSCOUTER FACTION SCOUT</div>
             <div class="panel-title">FACTION SCOUT</div>
             <div class="panel-content">
-              <p class="scan-line">PROFILE + MEMBER ESTIMATES USING TORN ROSTER, FFSCOUTER, AND BSP</p>
               <p class="scan-line">TORN ROSTER + ESTIMATES VIA OFFICIAL FFSCOUTER API</p>
               <div class="tool-grid tool-grid-compact">
+                <label>FACTION ID<input id="scoutFactionId" type="text" placeholder="34623" /></label>
+                <label>MEMBER LIMIT<input id="scoutMemberLimit" type="number" min="1" max="100" value="100" /></label>
+              </div>
+              <div class="tool-actions">
+                <button class="save-btn" onclick="loadFactionScout()">LOAD FACTION</button>
+                <button class="save-btn" onclick="loadCurrentFactionScout()">CURRENT FACTION</button>
                 <button class="save-btn" onclick="loadEnemyFactionScout()">CURRENT ENEMY</button>
-                <button class="save-btn" onclick="openFactionOnFFScouter()">OPEN FFSCOUTER</button>
                 <button class="save-btn" onclick="openFactionOnFFScouter()">OPEN SOURCE</button>
                 <span id="factionScoutStatus" class="muted">Ready.</span>
+              </div>
+              <div id="factionScoutSummary" class="tool-cards"></div>
+
+              <div class="sub-title">ACTIVITY SNAPSHOT</div>
+              <div id="factionActivitySummary" class="tool-cards"></div>
+
+              <div class="sub-title">MEMBERS</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Player</th><th>Lvl</th><th>Status</th><th>Fair Fight</th><th>Stats</th><th>Last Action</th><th>Hit</th></tr></thead>
+                  <tbody id="factionScoutMembers"><tr><td colspan="7">No faction loaded.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="activeWars" class="page">
+          <section class="panel">
+            <div class="panel-title">ACTIVE RANKED WARS</div>
             <div class="panel-content">
-              <p class="scan-line">TORN API LIST WITH FFSCOUTER ACTIVE-WARS LAUNCHER</p>
               <p class="scan-line">TORN API LIST WITH SOURCE TOOL LAUNCHER</p>
               <div class="tool-actions">
                 <button class="save-btn" onclick="loadActiveWars()">LOAD ACTIVE WARS</button>
-                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/active-ranked-wars')">OPEN FFSCOUTER</button>
                 <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/active-ranked-wars')">OPEN SOURCE</button>
                 <span id="activeWarsStatus" class="muted">Ready.</span>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Faction A</th><th>Score</th><th>Faction B</th><th>Score</th><th>Status</th><th>Started</th></tr></thead>
+                  <tbody id="activeWarsTable"><tr><td colspan="6">No wars loaded.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="ffTools" class="page">
           <section class="panel">
-            <div class="panel-title">FFSCOUTER TOOLS</div>
             <div class="panel-title">SCOUTING TOOLS</div>
             <div class="panel-content">
-              <p class="scan-line">KEY CHECK, ANNOUNCEMENTS, AND DIRECT TOOL LAUNCHERS</p>
               <p class="scan-line">DATA VIA OFFICIAL FFSCOUTER API; UI BY EMU HQ</p>
               <div class="tool-actions">
-                <button class="save-btn" onclick="checkFFScouterKey()">CHECK KEY</button>
-                <button class="save-btn" onclick="checkBSPKey()">CHECK BSP</button>
                 <button class="save-btn" onclick="checkFFScouterKey()">CHECK FF KEY</button>
                 <button class="save-btn" onclick="checkBSPKey()">CHECK PRIVATE PROXY</button>
                 <button class="save-btn" onclick="loadFFAnnouncements()">LOAD ANNOUNCEMENTS</button>
+                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/')">REGISTER / HOME</button>
+                <span id="ffToolsStatus" class="muted">Ready.</span>
+              </div>
+              <div id="ffKeySummary" class="tool-cards"></div>
+
+              <div class="sub-title">LAUNCHERS</div>
+              <div class="launcher-grid">
+                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/target-finder')">TARGET FINDER</button>
+                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/war-room')">WAR ROOM</button>
+                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/player-view')">PLAYER VIEWER</button>
+                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/faction-activity-comparison')">FACTION ACTIVITY</button>
+                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/faction-profile')">FACTION PROFILE</button>
+                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/top-battlestats')">BS LEADERBOARD</button>
+                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/top-activity')">ACTIVITY LEADERBOARD</button>
+                <button class="save-btn" onclick="openExternalTool('https://ffscouter.com/active-ranked-wars')">ACTIVE WARS</button>
+              </div>
+
+              <div class="sub-title">ANNOUNCEMENTS</div>
+              <div id="ffAnnouncements" class="intel-list">No announcements loaded.</div>
+            </div>
+          </section>
+        </div>
+
+        <div id="settings" class="page active-page">
+          <section class="panel">
+            <div class="panel-title">SETTINGS</div>
+            <div class="panel-content">
             <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
-            <input id="bspProxyUrl" type="password" placeholder="Enter BSP Proxy URL" />
             <input id="bspProxyUrl" type="password" placeholder="Optional private predictor proxy URL" />
             <button onclick="saveKey()" class="save-btn">SAVE SETTINGS</button>
-  <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260520-4" />
-  <link rel="stylesheet" href="style.css?v=20260520-5" />
-</head>
+            <div id="status">Waiting for API key...</div>
+          </div>
+          </section>
+        </div>
+      </section>
 
-  <script src="app.js?v=20260520-4"></script>
-  <script src="app.js?v=20260520-5"></script>
+      <aside class="right-column">
+        <section class="panel">
+          <div class="panel-title">ALERTS</div>
+          <div class="panel-content">
+            <p>[!] CHAIN: <span id="chainAlert">Loading...</span></p>
+            <p>[!] TERRITORY: <span id="territoryAlert">No assault detected</span></p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">ONLINE NOW</div>
+          <div class="panel-content intel-list" id="onlineMembersSide">Loading...</div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">RECENT ATTACKS</div>
+          <div class="panel-content intel-list" id="recentAttacks">Loading...</div>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <span>&gt; SYSTEM ONLINE AND OPERATIONAL</span>
+      <span>&gt; HQ EYES EVERYWHERE</span>
+      <span>&gt; NO MERCY. NO SURRENDER.</span>
+    </footer>
+  </div>
+
+  <script src="app.js?v=20260520-6"></script>
 </body>
+</html>
