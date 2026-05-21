@@ -2660,4 +2660,3 @@ Object.assign(window, {
 });
 
 init();
-
