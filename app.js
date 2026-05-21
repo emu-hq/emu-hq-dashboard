@@ -4,10 +4,10 @@ const EMUBS_API = ["https://", "ff", "scouter", ".com", "/api/v1"].join("");
 const DEFAULT_TORN_API_KEY = "";
 const BSP_API_KEY = "FgRPhLYolny6uS4P";
 const BSP_API = ["http://", "www.lol-manager.com", "/api"].join("");
-const BSP_BROWSER_RELAY = "https://api.codetabs.com/v1/proxy/?quest=";
+const BSP_RELAY = "https://api.codetabs.com/v1/proxy/?quest=";
 const BSP_SCRIPT_VERSION = "9.4.3";
 const BSP_CACHE_DAYS = 5;
-const BUILD_VERSION = "2026-05-21-bsp-browser-1";
+const BUILD_VERSION = "2026-05-20-native-tools-9";
 const POLL_INTERVAL_MS = 30000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
@@ -1334,20 +1334,11 @@ async function fetchBSPUserStatus() {
 }
 
 async function fetchBSPJson(url) {
-  const response = await fetch(`${BSP_BROWSER_RELAY}${encodeURIComponent(url)}`, { cache: "no-store" });
-  const text = await response.text();
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch (err) {
-    throw new Error(`BSP returned unreadable data (${response.status}).`);
-  }
-
+  const response = await fetch(BSP_RELAY + encodeURIComponent(url), { cache: "no-store" });
+  const data = await response.json();
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || `BSP HTTP ${response.status}`);
+    throw new Error(data?.error || data?.message || `Private predictor HTTP ${response.status}`);
   }
-
   return data;
 }
 
@@ -1698,55 +1689,20 @@ async function loadRecruiterCandidates() {
     const data = await getEmuBsData("/get-targets", params);
     targets = normalizeTargetResults(data);
   } catch (err) {
-    throw new Error("Recruiter feed unavailable. Try the search again in a moment.");
+    throw new Error("Recruiter feed unavailable. Try again.");
   }
 
-  const looseMatches = targets
+  const filtered = targets
     .filter(target => Number(target.level || 0) >= minLevel && Number(target.level || 0) <= maxLevel)
+    .filter(isFactionlessCandidate)
     .filter(target => {
       const age = getLastActionAgeSeconds(target);
       return age === null || (age >= minActive && age <= maxActive);
     })
-    .slice(0, Math.min(50, limit * 3));
-
-  const filtered = await verifyFactionlessRecruitTargets(looseMatches, limit);
+    .slice(0, limit);
 
   const enriched = await enrichTargetsWithBSP(filtered);
   return enriched;
-}
-
-async function verifyFactionlessRecruitTargets(targets, limit) {
-  const verified = [];
-  const capped = targets.slice(0, 50);
-  const concurrency = 4;
-  let cursor = 0;
-
-  async function worker() {
-    while (cursor < capped.length && verified.length < limit) {
-      const target = capped[cursor++];
-      const id = target.player_id || target.id || target.target;
-
-      if (!/^\d+$/.test(String(id))) continue;
-
-      try {
-        const profile = normalizePlayerProfile(await loadPublicPlayerProfile(id), id);
-        if (!isFactionlessCandidate(profile)) continue;
-
-        verified.push({
-          ...target,
-          faction: profile.faction,
-          faction_id: profile.factionId,
-          status: target.status || profile.status,
-          last_action_relative: target.last_action_relative || profile.lastAction
-        });
-      } catch (err) {
-        // Do not surface unverified recruiter rows as factionless candidates.
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: concurrency }, worker));
-  return verified.slice(0, limit);
 }
 
 function parseRange(value) {
@@ -1758,7 +1714,7 @@ function isFactionlessCandidate(target) {
   const faction = target.faction || target.faction_id || target.factionId || target.faction_name || target.factionName;
   if (faction === undefined || faction === null || faction === "" || faction === 0 || faction === "0") return true;
   if (typeof faction === "object") return !(faction.id || faction.ID || faction.name);
-  return ["none", "n/a", "null"].includes(String(faction).toLowerCase());
+  return String(faction).toLowerCase() === "none";
 }
 
 function getLastActionAgeSeconds(target) {
@@ -2644,4 +2600,59 @@ function emptyTableRow(message, colspan) {
   return `<tr><td colspan="${colspan || 1}" class="muted">${escapeHtml(message)}</td></tr>`;
 }
 
-function updateCloc
+function updateClock() {
+  const now = new Date();
+  setText("clock", now.toLocaleTimeString());
+  setText("date", now.toLocaleDateString());
+}
+
+function init() {
+  window.EMU_TERMINAL_BUILD = BUILD_VERSION;
+
+  const keyInput = document.getElementById("apiKey");
+  if (keyInput && apiKey) keyInput.value = apiKey;
+
+  updateClock();
+  updateCountdowns();
+  setTargetPreset(targetPreset);
+  setWarSortMode(warSortMode);
+  syncAccessState();
+
+  if (!hasTornApiKey()) {
+    showPage("settings");
+    setText("status", "Enter Torn API key to unlock terminal.");
+  } else {
+    showPage("dashboard", document.querySelector(".link-btn"));
+  }
+
+  loadAllData();
+
+  setInterval(updateClock, 1000);
+  setInterval(updateCountdowns, 1000);
+  setInterval(loadAllData, POLL_INTERVAL_MS);
+}
+
+Object.assign(window, {
+  showPage,
+  saveKey,
+  setTargetPreset,
+  setWarSortMode,
+  searchTargets,
+  copyTargetIds,
+  searchRecruiter,
+  copyRecruitIds,
+  loadPlayerView,
+  loadSelfPlayerView,
+  openPlayerProfile,
+  loadFactionScout,
+  loadCurrentFactionScout,
+  loadEnemyFactionScout,
+  openFactionProfile,
+  loadActiveWars,
+  openExternalTool,
+  refreshWarTools
+});
+
+init();
+
+
