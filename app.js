@@ -7,7 +7,7 @@ const BSP_API = ["http://", "www.lol-manager.com", "/api"].join("");
 const BSP_CORS_RELAY = "https://api.codetabs.com/v1/proxy/?quest=";
 const BSP_SCRIPT_VERSION = "9.4.3";
 const BSP_CACHE_DAYS = 5;
-const BUILD_VERSION = "2026-05-20-native-tools-10";
+const BUILD_VERSION = "2026-05-21-native-tools-11";
 const POLL_INTERVAL_MS = 30000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
@@ -77,6 +77,9 @@ function saveKey() {
   syncAccessState();
   loadAllData();
 }
+
+window.showPage = showPage;
+window.saveKey = saveKey;
 
 function syncAccessState() {
   const locked = !hasTornApiKey();
@@ -2646,5 +2649,4 @@ function init() {
   syncAccessState();
 
   if (!hasTornApiKey()) {
-    showPage("settings");
-    setText("status", "Enter Torn API key to unl
+    showPage("setti
