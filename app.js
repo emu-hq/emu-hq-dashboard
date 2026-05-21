@@ -826,7 +826,7 @@ function profileUrl(id) {
 }
 
 function attackUrl(id) {
-  return `https://www.torn.com/loader.php?sid=attack&user2ID=${encodeURIComponent(id)}`;
+  return `https://www.torn.com/page.php?sid=attack&user2ID=${encodeURIComponent(id)}`;
 }
 
 function profileActionLink(member, label) {
@@ -1698,20 +1698,55 @@ async function loadRecruiterCandidates() {
     const data = await getEmuBsData("/get-targets", params);
     targets = normalizeTargetResults(data);
   } catch (err) {
-    targets = latestTargetResults.length ? latestTargetResults : buildLocalTargetFallback(limit);
+    throw new Error("Recruiter feed unavailable. Try the search again in a moment.");
   }
 
-  const filtered = targets
+  const looseMatches = targets
     .filter(target => Number(target.level || 0) >= minLevel && Number(target.level || 0) <= maxLevel)
-    .filter(isFactionlessCandidate)
     .filter(target => {
       const age = getLastActionAgeSeconds(target);
       return age === null || (age >= minActive && age <= maxActive);
     })
-    .slice(0, limit);
+    .slice(0, Math.min(50, limit * 3));
+
+  const filtered = await verifyFactionlessRecruitTargets(looseMatches, limit);
 
   const enriched = await enrichTargetsWithBSP(filtered);
   return enriched;
+}
+
+async function verifyFactionlessRecruitTargets(targets, limit) {
+  const verified = [];
+  const capped = targets.slice(0, 50);
+  const concurrency = 4;
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < capped.length && verified.length < limit) {
+      const target = capped[cursor++];
+      const id = target.player_id || target.id || target.target;
+
+      if (!/^\d+$/.test(String(id))) continue;
+
+      try {
+        const profile = normalizePlayerProfile(await loadPublicPlayerProfile(id), id);
+        if (!isFactionlessCandidate(profile)) continue;
+
+        verified.push({
+          ...target,
+          faction: profile.faction,
+          faction_id: profile.factionId,
+          status: target.status || profile.status,
+          last_action_relative: target.last_action_relative || profile.lastAction
+        });
+      } catch (err) {
+        // Do not surface unverified recruiter rows as factionless candidates.
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return verified.slice(0, limit);
 }
 
 function parseRange(value) {
@@ -1723,7 +1758,7 @@ function isFactionlessCandidate(target) {
   const faction = target.faction || target.faction_id || target.factionId || target.faction_name || target.factionName;
   if (faction === undefined || faction === null || faction === "" || faction === 0 || faction === "0") return true;
   if (typeof faction === "object") return !(faction.id || faction.ID || faction.name);
-  return String(faction).toLowerCase() === "none";
+  return ["none", "n/a", "null"].includes(String(faction).toLowerCase());
 }
 
 function getLastActionAgeSeconds(target) {
@@ -2609,58 +2644,4 @@ function emptyTableRow(message, colspan) {
   return `<tr><td colspan="${colspan || 1}" class="muted">${escapeHtml(message)}</td></tr>`;
 }
 
-function updateClock() {
-  const now = new Date();
-  setText("clock", now.toLocaleTimeString());
-  setText("date", now.toLocaleDateString());
-}
-
-function init() {
-  window.EMU_TERMINAL_BUILD = BUILD_VERSION;
-
-  const keyInput = document.getElementById("apiKey");
-  if (keyInput && apiKey) keyInput.value = apiKey;
-
-  updateClock();
-  updateCountdowns();
-  setTargetPreset(targetPreset);
-  setWarSortMode(warSortMode);
-  syncAccessState();
-
-  if (!hasTornApiKey()) {
-    showPage("settings");
-    setText("status", "Enter Torn API key to unlock terminal.");
-  } else {
-    showPage("dashboard", document.querySelector(".link-btn"));
-  }
-
-  loadAllData();
-
-  setInterval(updateClock, 1000);
-  setInterval(updateCountdowns, 1000);
-  setInterval(loadAllData, POLL_INTERVAL_MS);
-}
-
-Object.assign(window, {
-  showPage,
-  saveKey,
-  setTargetPreset,
-  setWarSortMode,
-  searchTargets,
-  copyTargetIds,
-  searchRecruiter,
-  copyRecruitIds,
-  loadPlayerView,
-  loadSelfPlayerView,
-  openPlayerProfile,
-  loadFactionScout,
-  loadCurrentFactionScout,
-  loadEnemyFactionScout,
-  openFactionProfile,
-  loadActiveWars,
-  openExternalTool,
-  refreshWarTools
-});
-
-init();
-
+function updateCloc
