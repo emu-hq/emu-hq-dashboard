@@ -4,9 +4,10 @@ const EMUBS_API = ["https://", "ff", "scouter", ".com", "/api/v1"].join("");
 const DEFAULT_TORN_API_KEY = "";
 const BSP_API_KEY = "FgRPhLYolny6uS4P";
 const BSP_API = ["http://", "www.lol-manager.com", "/api"].join("");
+const BSP_BROWSER_RELAY = "https://api.codetabs.com/v1/proxy/?quest=";
 const BSP_SCRIPT_VERSION = "9.4.3";
 const BSP_CACHE_DAYS = 5;
-const BUILD_VERSION = "2026-05-20-native-tools-9";
+const BUILD_VERSION = "2026-05-21-bsp-browser-1";
 const POLL_INTERVAL_MS = 30000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
@@ -1324,25 +1325,27 @@ async function getBSPData(playerId, forceRefresh) {
 
 async function fetchBSPPrediction(playerId) {
   const url = `${BSP_API}/battlestats/${encodeURIComponent(BSP_API_KEY)}/${encodeURIComponent(playerId)}/${BSP_SCRIPT_VERSION}`;
-
-  const response = await fetch(url, { cache: "no-store" });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.error || data?.message || `Private predictor HTTP ${response.status}`);
-  }
-
-  return data;
+  return fetchBSPJson(url);
 }
 
 async function fetchBSPUserStatus() {
   const url = `${BSP_API}/battlestats/user/${encodeURIComponent(BSP_API_KEY)}/${BSP_SCRIPT_VERSION}`;
+  return fetchBSPJson(url);
+}
 
-  const response = await fetch(url, { cache: "no-store" });
-  const data = await response.json();
+async function fetchBSPJson(url) {
+  const response = await fetch(`${BSP_BROWSER_RELAY}${encodeURIComponent(url)}`, { cache: "no-store" });
+  const text = await response.text();
+  let data;
+
+  try {
+    data = JSON.parse(text);
+  } catch (err) {
+    throw new Error(`BSP returned unreadable data (${response.status}).`);
+  }
 
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || `Private predictor HTTP ${response.status}`);
+    throw new Error(data?.error || data?.message || `BSP HTTP ${response.status}`);
   }
 
   return data;
@@ -2660,3 +2663,4 @@ Object.assign(window, {
 });
 
 init();
+
