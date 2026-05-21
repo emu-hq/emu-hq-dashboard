@@ -4,630 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <style>
-*{
-  box-sizing:border-box;
-}
-
-body{
-  margin:0;
-  background:#000;
-  color:#00ff66;
-  font-family:monospace;
-  text-shadow:0 0 6px #00ff66;
-  overflow-x:auto;
-}
-
-body::before{
-  content:"";
-  position:fixed;
-  inset:0;
-  background:repeating-linear-gradient(
-    to bottom,
-    rgba(0,255,100,0.04),
-    rgba(0,255,100,0.04) 1px,
-    transparent 1px,
-    transparent 4px
-  );
-  pointer-events:none;
-  z-index:9999;
-}
-
-a{
-  color:#7cffad;
-  text-decoration:none;
-}
-
-a:hover,
-.link-btn:hover{
-  color:#c9ffdd;
-}
-
-p{
-  margin:0 0 8px;
-}
-
-.terminal{
-  width:1500px;
-  margin:auto;
-  padding:14px;
-}
-
-.topbar{
-  border:1px solid #00ff66;
-  display:grid;
-  grid-template-columns:1fr 1fr 1fr;
-  align-items:start;
-  padding:14px;
-  margin-bottom:16px;
-  background:rgba(0,20,0,0.45);
-  box-shadow:0 0 14px rgba(0,255,100,0.4);
-}
-
-.topbar h1{
-  margin:0;
-  font-size:24px;
-}
-
-.top-center{
-  text-align:center;
-  font-size:18px;
-  margin-top:18px;
-}
-
-.top-right{
-  text-align:right;
-}
-
-.main-layout{
-  display:grid;
-  grid-template-columns:320px 1fr 320px;
-  gap:16px;
-}
-
-.panel{
-  border:1px solid #00ff66;
-  margin-bottom:16px;
-  background:rgba(0,20,0,0.45);
-  box-shadow:0 0 12px rgba(0,255,100,0.35);
-}
-
-.panel-title{
-  padding:14px;
-  border-bottom:1px solid #00ff66;
-  font-size:18px;
-}
-
-.panel-content{
-  padding:14px;
-  line-height:1.7;
-}
-
-.links{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-}
-
-.link-btn{
-  background:none;
-  border:none;
-  color:#00ff66;
-  font-family:monospace;
-  text-align:left;
-  font-size:16px;
-  cursor:pointer;
-}
-
-.link-btn.active{
-  color:#c9ffdd;
-}
-
-.link-btn:disabled,
-.locked-link{
-  cursor:not-allowed;
-  opacity:.45;
-}
-
-.center-title{
-  text-align:center;
-  font-size:46px;
-  margin-bottom:22px;
-}
-
-.api-window{
-  border:1px solid #00ff66;
-  background:rgba(0,15,0,0.55);
-  box-shadow:0 0 18px rgba(0,255,100,0.5);
-}
-
-.api-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  border-bottom:1px solid #00ff66;
-  padding:16px 22px;
-  font-size:18px;
-}
-
-.window-buttons{
-  display:flex;
-  gap:20px;
-  font-size:32px;
-}
-
-.profile-wrap{
-  padding:28px;
-  text-align:center;
-}
-
-.pfp{
-  width:180px;
-  height:180px;
-  object-fit:cover;
-  border-radius:18px;
-  border:1px solid #00ff66;
-  box-shadow:0 0 18px #00ff66;
-}
-
-#playerName{
-  font-size:40px;
-  margin:18px 0 6px;
-}
-
-.rank-tag{
-  display:inline-block;
-  border:1px solid #00ff66;
-  padding:8px 18px;
-  margin:14px 0 28px;
-}
-
-.user-bars{
-  display:flex;
-  justify-content:center;
-  gap:14px;
-  margin:14px 0 20px;
-  flex-wrap:wrap;
-}
-
-.bar-box{
-  border:1px solid #00ff66;
-  background:rgba(0,20,0,0.45);
-  padding:10px 16px;
-  min-width:140px;
-  text-align:center;
-}
-
-.bar-box strong{
-  display:block;
-  margin-top:6px;
-  font-size:24px;
-}
-
-.stats-grid{
-  display:grid;
-  grid-template-columns:repeat(2,1fr);
-  gap:16px;
-}
-
-.stat{
-  border:1px solid #00ff66;
-  padding:24px;
-  background:rgba(0,20,0,0.45);
-}
-
-.stat span{
-  display:block;
-  margin-bottom:12px;
-  opacity:.8;
-}
-
-.stat strong{
-  font-size:34px;
-}
-
-.timer-box{
-  text-align:center;
-}
-
-.timer{
-  font-size:42px;
-  margin:18px 0;
-  min-height:58px;
-}
-
-.timer-small{
-  font-size:14px;
-}
-
-.connection-status{
-  border:1px solid #00ff66;
-  padding:18px;
-  margin-top:28px;
-  font-size:28px;
-}
-
-.footer{
-  margin-top:18px;
-  border:1px solid #00ff66;
-  padding:16px;
-  display:flex;
-  justify-content:space-between;
-  background:rgba(0,20,0,0.45);
-}
-
-input,
-select{
-  width:100%;
-  padding:14px;
-  background:#000;
-  color:#00ff66;
-  border:1px solid #00ff66;
-  font-family:monospace;
-  margin-bottom:14px;
-}
-
-select{
-  appearance:none;
-  background:#000;
-}
-
-.save-btn{
-  padding:12px 18px;
-  background:#001800;
-  color:#00ff66;
-  border:1px solid #00ff66;
-  font-family:monospace;
-  cursor:pointer;
-}
-
-.save-btn.active-tool{
-  background:#00ff66;
-  color:#001800;
-  text-shadow:none;
-}
-
-.page{
-  display:none;
-}
-
-.active-page{
-  display:block;
-}
-
-.intel-list{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-
-.intel-row{
-  border:1px solid rgba(0,255,102,0.55);
-  padding:9px 10px;
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-  background:rgba(0,10,0,0.42);
-}
-
-.intel-row span:first-child{
-  min-width:0;
-}
-
-.intel-row small{
-  display:block;
-  margin-top:4px;
-  opacity:.74;
-  line-height:1.35;
-  text-shadow:none;
-}
-
-.sub-title{
-  margin:18px 0 10px;
-  padding-bottom:8px;
-  border-bottom:1px solid rgba(0,255,102,0.5);
-  font-size:16px;
-}
-
-.scan-line{
-  color:#c9ffdd;
-  letter-spacing:0;
-  opacity:.88;
-}
-
-.tool-actions,
-.target-controls{
-  display:flex;
-  flex-wrap:wrap;
-  align-items:center;
-  gap:10px;
-  margin:14px 0;
-}
-
-.tool-grid{
-  display:grid;
-  grid-template-columns:repeat(4,minmax(120px,1fr));
-  gap:12px;
-  margin:14px 0;
-}
-
-.tool-grid-compact{
-  grid-template-columns:repeat(2,minmax(160px,1fr));
-}
-
-.tool-grid label{
-  display:block;
-  font-size:12px;
-  color:#c9ffdd;
-  opacity:.9;
-}
-
-.tool-grid input,
-.tool-grid select{
-  margin:6px 0 0;
-  padding:10px;
-}
-
-.hidden,
-.manual-targets{
-  display:none;
-}
-
-.manual-targets.active-manual{
-  display:grid;
-  grid-template-columns:1fr;
-}
-
-.tool-card-grid{
-  display:grid;
-  grid-template-columns:repeat(3,minmax(160px,1fr));
-  gap:12px;
-  margin:14px 0;
-}
-
-.tool-card{
-  border:1px solid rgba(0,255,102,0.55);
-  background:rgba(0,10,0,0.42);
-  padding:12px;
-  min-height:78px;
-}
-
-.tool-card span{
-  display:block;
-  color:#c9ffdd;
-  font-size:12px;
-  opacity:.84;
-  margin-bottom:8px;
-}
-
-.tool-card strong{
-  display:block;
-  color:#00ff66;
-  font-size:18px;
-  overflow-wrap:anywhere;
-}
-
-.launcher-grid{
-  display:grid;
-  grid-template-columns:repeat(4,minmax(140px,1fr));
-  gap:10px;
-}
-
-.launcher-grid .save-btn{
-  width:100%;
-}
-
-.lookup-dashboard{
-  margin:16px 0;
-}
-
-.lookup-profile-wrap{
-  padding-top:18px;
-}
-
-.lookup-profile-wrap h2{
-  font-size:24px;
-  margin:8px 0;
-  overflow-wrap:anywhere;
-}
-
-.lookup-profile-wrap .pfp{
-  width:92px;
-  height:92px;
-}
-
-.lookup-stats-grid{
-  grid-template-columns:repeat(3,minmax(0,1fr));
-}
-
-.lookup-stats-grid .stat strong{
-  font-size:16px;
-  overflow-wrap:anywhere;
-}
-
-.data-table-wrap{
-  width:100%;
-  overflow-x:auto;
-  border:1px solid rgba(0,255,102,0.55);
-  background:rgba(0,10,0,0.42);
-}
-
-.data-table{
-  width:100%;
-  border-collapse:collapse;
-  min-width:720px;
-}
-
-.data-table th,
-.data-table td{
-  border-bottom:1px solid rgba(0,255,102,0.35);
-  padding:9px 10px;
-  text-align:left;
-  vertical-align:middle;
-  text-shadow:none;
-}
-
-.data-table th{
-  color:#c9ffdd;
-  background:rgba(0,255,102,0.08);
-  font-weight:normal;
-}
-
-.group-row td{
-  background:rgba(0,255,102,0.13);
-  color:#00ff66;
-  font-weight:700;
-  letter-spacing:0;
-  text-transform:uppercase;
-  border-top:1px solid rgba(0,255,102,0.45);
-  border-bottom:1px solid rgba(0,255,102,0.45);
-}
-
-.sortable-th{
-  cursor:pointer;
-}
-
-.sortable-th:hover{
-  color:#00ff66;
-  text-shadow:0 0 8px rgba(0,255,102,0.65);
-}
-
-.data-table tr:last-child td{
-  border-bottom:none;
-}
-
-.data-table td small{
-  display:block;
-  margin-top:4px;
-  max-width:220px;
-  color:#c9ffdd;
-  opacity:.7;
-  line-height:1.3;
-  white-space:normal;
-}
-
-.compact-table{
-  min-width:0;
-}
-
-.compact-table td:last-child,
-.compact-table th:last-child{
-  text-align:right;
-  color:#ff5fb8;
-}
-
-.hit-link{
-  display:inline-block;
-  border:1px solid rgba(0,255,102,0.7);
-  padding:2px 7px;
-  min-width:42px;
-  text-align:center;
-  color:#c9ffdd;
-}
-
-.hit-link:hover{
-  background:#00ff66;
-  color:#001800;
-  text-shadow:none;
-}
-
-.danger-hit{
-  border-color:#ff7d7d;
-  color:#ff9b9b;
-}
-
-.stat-pill,
-.status-pill{
-  display:inline-block;
-  border:1px solid rgba(0,255,102,0.55);
-  padding:1px 6px;
-  white-space:nowrap;
-  background:rgba(0,255,102,0.08);
-}
-
-.stat-pill{
-  color:#ff9b9b;
-  border-color:#ff5f6f;
-}
-
-.status-hosp{
-  color:#ff7d7d;
-  border-color:#ff5f6f;
-}
-
-.status-travel{
-  color:#ffd466;
-  border-color:#ffd466;
-}
-
-.status-okay{
-  color:#9dff9d;
-}
-
-.badge{
-  border:1px solid rgba(0,255,102,0.55);
-  padding:1px 6px;
-  white-space:nowrap;
-}
-
-.muted{
-  opacity:.72;
-}
-
-.danger{
-  color:#ff7d7d;
-  text-shadow:0 0 6px #ff4d4d;
-}
-
-.warning{
-  color:#ffd466;
-  text-shadow:0 0 6px #c7951f;
-}
-
-.good{
-  color:#9dff9d;
-}
-
-.attack-time,
-.countdown,
-.travel-eta{
-  white-space:nowrap;
-}
-
-.travel-eta{
-  color:#ffd466;
-}
-
-@media(max-width:1600px){
-  .terminal{
-    transform:scale(.72);
-    transform-origin:top left;
-    width:1500px;
-  }
-
-  body{
-    min-width:1080px;
-  }
-}
-
-@media(max-width:900px){
-  .tool-grid{
-    grid-template-columns:repeat(2,minmax(120px,1fr));
-  }
-
-  .tool-card-grid,
-  .launcher-grid{
-    grid-template-columns:repeat(2,minmax(140px,1fr));
-  }
-
-  .target-controls .save-btn,
-  .tool-actions .save-btn{
-    flex:1 1 150px;
-  }
-}
-
-  </style>
+    <link rel="stylesheet" href="style.css?v=20260521-03" />
 </head>
 
 <body>
@@ -935,4 +312,181 @@ select{
             <div class="panel-title">JOB POINTS</div>
             <div class="panel-content">
               <div class="data-table-wrap">
-     
+                <table class="data-table compact-table">
+                  <thead><tr><th>Private Companies</th><th>Points</th></tr></thead>
+                  <tbody>
+                    <tr><td>Adult Novelties</td><td>9</td></tr>
+                    <tr><td>Television Network</td><td>190</td></tr>
+                    <tr><td>Property Broker</td><td>150</td></tr>
+                    <tr><td>Music Store</td><td>225</td></tr>
+                    <tr><td>Restaurant</td><td>30</td></tr>
+                    <tr><td>Ladies Strip Club</td><td>60</td></tr>
+                    <tr><td>Private Security Firm</td><td>237</td></tr>
+                    <tr><td>Mining Corporation</td><td>352</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table compact-table">
+                  <thead><tr><th>Torn City Jobs</th><th>Points</th></tr></thead>
+                  <tbody>
+                    <tr><td>Medical</td><td>3</td></tr>
+                    <tr><td>Casino</td><td>5</td></tr>
+                    <tr><td>Education</td><td>5</td></tr>
+                    <tr><td>Law</td><td>5</td></tr>
+                    <tr><td>Grocer</td><td>5</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="playerView" class="page">
+          <section class="panel">
+            <div class="panel-title">PLAYER VIEW</div>
+            <div class="panel-content">
+              <p class="scan-line">PROFILE + ESTIMATES VIA EMU BS TRACKER</p>
+              <div class="tool-grid tool-grid-compact">
+                <label>PLAYER ID<input id="playerLookupId" type="text" placeholder="1844049" /></label>
+                <label>HISTORY LIMIT<input id="playerHistoryLimit" type="number" min="1" max="100" value="25" /></label>
+              </div>
+              <div class="tool-actions">
+                <button type="button" class="save-btn" data-tool-action="load-player" onclick="loadPlayerView()">LOAD PLAYER</button>
+                <button type="button" class="save-btn" data-tool-action="load-self-player" onclick="loadSelfPlayerView()">USE MY ID</button>
+                <button type="button" class="save-btn" onclick="openPlayerProfile()">OPEN TORN</button>
+                <span id="playerViewStatus" class="muted">Ready.</span>
+              </div>
+              <div id="playerDashboardCard"></div>
+              <div id="playerViewSummary" class="tool-cards"></div>
+
+              <div class="sub-title">HISTORY WITH YOU / FACTION</div>
+              <div id="playerRelationPanel" class="intel-list">No player loaded.</div>
+
+              <div class="sub-title">ESTIMATE HISTORY</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Time</th><th>Estimate</th><th>BSS Public</th><th>Source</th></tr></thead>
+                  <tbody id="playerHistoryTable"><tr><td colspan="4">No player loaded.</td></tr></tbody>
+                </table>
+              </div>
+
+              <div class="sub-title">FLIGHT TRACKER</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Trip</th><th>Method</th><th>Earliest</th><th>Latest</th><th>Notes</th></tr></thead>
+                  <tbody id="playerFlightsTable"><tr><td colspan="5">No player loaded.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="factionScout" class="page">
+          <section class="panel">
+            <div class="panel-title">FACTION SCOUT</div>
+            <div class="panel-content">
+              <p class="scan-line">TORN ROSTER + ESTIMATES VIA EMU BS TRACKER</p>
+              <div class="tool-grid tool-grid-compact">
+                <label>FACTION ID<input id="scoutFactionId" type="text" placeholder="34623" /></label>
+                <label>MEMBER LIMIT<input id="scoutMemberLimit" type="number" min="1" max="100" value="100" /></label>
+              </div>
+              <div class="tool-actions">
+                <button class="save-btn" onclick="loadFactionScout()">LOAD FACTION</button>
+                <button class="save-btn" onclick="loadCurrentFactionScout()">CURRENT FACTION</button>
+                <button class="save-btn" onclick="loadEnemyFactionScout()">CURRENT ENEMY</button>
+                <button class="save-btn" onclick="openFactionProfile()">OPEN TORN</button>
+                <span id="factionScoutStatus" class="muted">Ready.</span>
+              </div>
+              <div id="factionScoutSummary" class="tool-cards"></div>
+
+              <div class="sub-title">ACTIVITY SNAPSHOT</div>
+              <div id="factionActivitySummary" class="tool-cards"></div>
+
+              <div class="sub-title">MEMBERS</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Player</th><th>Lvl</th><th>Status</th><th>Fair Fight</th><th>Stats</th><th>Last Action</th><th>Attack</th></tr></thead>
+                  <tbody id="factionScoutMembers"><tr><td colspan="7">No faction loaded.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="activeWars" class="page">
+          <section class="panel">
+            <div class="panel-title">ACTIVE RANKED WARS</div>
+            <div class="panel-content">
+              <p class="scan-line">LIVE WARFARE, TERRITORY PRESSURE, AND CHAINS</p>
+              <div class="tool-actions">
+                <button class="save-btn" onclick="loadActiveWars()">LOAD WARFARE</button>
+                <span id="activeWarsStatus" class="muted">Ready.</span>
+              </div>
+              <div class="sub-title">RANKED WARS</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Faction A</th><th>Score</th><th>Faction B</th><th>Score</th><th>Status</th><th>Started</th></tr></thead>
+                  <tbody id="activeWarsTable"><tr><td colspan="6">No wars loaded.</td></tr></tbody>
+                </table>
+              </div>
+              <div class="sub-title">TERRITORY ASSAULTS</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Territory</th><th>Faction A</th><th>Faction B</th><th>Status</th><th>Started</th></tr></thead>
+                  <tbody id="activeTerritoryTable"><tr><td colspan="5">No territory assaults loaded.</td></tr></tbody>
+                </table>
+              </div>
+              <div class="sub-title">LIVE CHAINS</div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Faction</th><th>Chain</th><th>Timeout</th><th>Started</th><th>Status</th></tr></thead>
+                  <tbody id="liveChainsTable"><tr><td colspan="5">No live chains loaded.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="settings" class="page active-page">
+          <section class="panel">
+            <div class="panel-title">SETTINGS</div>
+            <div class="panel-content">
+            <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
+            <button onclick="saveKey()" class="save-btn">SAVE SETTINGS</button>
+            <div id="status">Waiting for API key...</div>
+          </div>
+          </section>
+        </div>
+      </section>
+
+      <aside class="right-column">
+        <section class="panel">
+          <div class="panel-title">ALERTS</div>
+          <div class="panel-content">
+            <p>[!] CHAIN: <span id="chainAlert">Loading...</span></p>
+            <p>[!] TERRITORY: <span id="territoryAlert">No assault detected</span></p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">ONLINE NOW</div>
+          <div class="panel-content intel-list" id="onlineMembersSide">Loading...</div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">RECENT ATTACKS</div>
+          <div class="panel-content intel-list" id="recentAttacks">Loading...</div>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <span>&gt; SYSTEM ONLINE AND OPERATIONAL</span>
+      <span>&gt; HQ EYES EVERYWHERE</span>
+      <span>&gt; NO MERCY. NO SURRENDER.</span>
+    </footer>
+  </div>
+
+  <script>
+    window.showPage = window.showPage || function 
