@@ -679,7 +679,7 @@ function getTravelInfo(member) {
   if (route) {
     const destination = route.to === "Torn" ? route.from : route.to;
     const times = getTravelTimes(destination);
-    const travelSince = Number(tracking?.travelSince || tracking?.since || Date.now());
+    const travelSince = Number(member.emu_travel_since || tracking?.travelSince || tracking?.since || Date.now());
     const estimates = times
       ? {
           standard: Math.floor((travelSince + times.standard * 60 * 1000) / 1000),
@@ -1043,7 +1043,7 @@ function renderWarOverview(war, active, upcoming) {
 
 async function loadEnemyFaction(enemyId) {
   try {
-    const data = await loadFactionMembers(enemyId);
+    const data = await loadTrackedFactionMembers(enemyId);
 
     if (String(enemyId) !== String(activeEnemyId)) return;
 
@@ -1057,6 +1057,14 @@ async function loadEnemyFaction(enemyId) {
   } catch (err) {
     setHtml("enemyHospitalList", emptyMessage(`Enemy status unavailable: ${err.message}`));
     setHtml("warTargetsTable", emptyTableRow(`Enemy status unavailable: ${err.message}`, 6));
+  }
+}
+
+async function loadTrackedFactionMembers(factionId) {
+  try {
+    return await getData(`${EMU_WORKER_API}/api/travel/faction/${encodeURIComponent(factionId)}`);
+  } catch (err) {
+    return loadFactionMembers(factionId);
   }
 }
 
