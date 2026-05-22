@@ -408,10 +408,32 @@ select{
   text-align:right;
 }
 
+.range-line .ff-number{
+  width:78px;
+  margin:0;
+  padding:8px;
+}
+
 .range-tool small{
   color:#c9ffdd;
   opacity:.84;
   text-shadow:none;
+}
+
+.filter-toggle{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-height:56px;
+}
+
+.filter-toggle input{
+  width:auto;
+  margin:0;
+}
+
+.filter-disabled{
+  opacity:.48;
 }
 
 .hidden,
