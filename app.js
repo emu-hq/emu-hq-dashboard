@@ -1647,6 +1647,11 @@ async function getEmuBsData(endpoint, params) {
   return data;
 }
 
+async function getWorkerTargetFeed(params) {
+  const search = new URLSearchParams(params);
+  return getData(`${EMU_WORKER_API}/api/targets/search?${search.toString()}`);
+}
+
 function formatTrackerError(message) {
   const text = String(message || "EMU BS Tracker unavailable.");
 
@@ -1852,14 +1857,13 @@ async function enrichTargetsWithBSP(targets) {
 async function searchFilteredTargets() {
   const limit = clampNumber(inputValue("targetLimit", 20), 1, 50);
   const params = {
-    key: getTornApiKey(),
     limit
   };
 
   try {
     if (targetPreset === "respect" || targetPreset === "level") {
       params.preset = targetPreset;
-      return await getEmuBsData("/get-targets", params);
+      return await getWorkerTargetFeed(params);
     }
 
     params.minlevel = clampNumber(inputValue("targetMinLevel", 1), 1, 100);
@@ -1869,7 +1873,7 @@ async function searchFilteredTargets() {
     params.inactiveonly = document.getElementById("targetInactive")?.value || "1";
     params.factionless = document.getElementById("targetFactionless")?.value || "0";
 
-    return await getEmuBsData("/get-targets", params);
+    return await getWorkerTargetFeed(params);
   } catch (err) {
     throw new Error("Target feed unavailable. Random target search is not loaded.");
   }
@@ -2016,20 +2020,17 @@ async function loadRecruiterCandidates() {
   const maxLevel = clampNumber(inputValue("recruitMaxLevel", 100), 1, 100);
   const [minActive, maxActive] = parseRange(document.getElementById("recruitActivity")?.value || "0-900");
   const params = {
-    key: getTornApiKey(),
     limit: Math.min(50, limit * 3),
     minlevel: minLevel,
     maxlevel: maxLevel,
     factionless: "1",
-    inactiveonly: "0",
-    activity_min: minActive,
-    activity_max: maxActive
+    inactiveonly: "0"
   };
 
   let targets = [];
 
   try {
-    const data = await getEmuBsData("/get-targets", params);
+    const data = await getWorkerTargetFeed(params);
     targets = normalizeTargetResults(data);
   } catch (err) {
     throw new Error("Recruiter feed unavailable. It needs a working factionless target source.");
