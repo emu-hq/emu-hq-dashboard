@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260522-flights-2" />
+  <link rel="stylesheet" href="style.css?v=20260522-war-tabs-2" />
 </head>
 
 <body>
@@ -169,10 +169,10 @@
               </div>
 
               <div class="sub-title">ENEMY TARGETS</div>
-              <div class="tool-actions war-flight-controls">
-                <button type="button" class="save-btn" data-war-flight-mode="eta" onclick="setWarFlightMode('eta')">FLIGHT ETA</button>
-                <button type="button" class="save-btn" data-war-flight-mode="overseas" onclick="setWarFlightMode('overseas')">OVERSEAS ONLY</button>
-                <button type="button" class="save-btn" data-war-flight-mode="all" onclick="setWarFlightMode('all')">ALL STATUS</button>
+              <div class="target-controls war-status-tabs">
+                <button type="button" class="save-btn" data-war-view="okay" onclick="setWarView('okay')">HOSPITAL / OKAY</button>
+                <button type="button" class="save-btn" data-war-view="overseas" onclick="setWarView('overseas')">OVERSEAS</button>
+                <button type="button" class="save-btn" data-war-view="flights" onclick="setWarView('flights')">FLIGHT ETAS</button>
               </div>
               <div class="data-table-wrap">
                 <table class="data-table">
@@ -458,6 +458,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260522-flights-2"></script>
+  <script src="app.js?v=20260522-war-tabs-2"></script>
 </body>
 </html>
