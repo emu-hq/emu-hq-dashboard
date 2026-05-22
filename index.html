@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260522-target-modes-1" />
+  <link rel="stylesheet" href="style.css?v=20260522-ff-layout-1" />
 </head>
 
 <body>
@@ -262,7 +262,7 @@
                 <input id="targetMinFF" type="hidden" value="1" />
                 <label class="range-tool" id="targetFFControls">TARGET DIFFICULTY
                   <span class="range-line">
-                    <input id="targetMaxFF" type="range" min="1.01" max="5" step="0.05" value="3" oninput="updateTargetFFLabel()" />
+                    <input id="targetMaxFF" type="range" min="1.01" max="5" step="0.05" value="3" oninput="enableTargetFFMode(); updateTargetFFLabel()" />
                     <input id="targetMaxFFNumber" class="ff-number" type="number" min="1.01" max="5" step="0.05" value="3" oninput="setTargetFFFromNumber()" />
                     <strong id="targetFFValue">FF 3</strong>
                   </span>
@@ -515,6 +515,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260522-target-modes-1"></script>
+  <script src="app.js?v=20260522-ff-layout-1"></script>
 </body>
 </html>
