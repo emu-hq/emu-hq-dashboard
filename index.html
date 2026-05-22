@@ -1,520 +1,700 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260522-ff-layout-1" />
-</head>
+*{
+  box-sizing:border-box;
+}
 
-<body>
-  <div class="terminal">
-    <header class="topbar">
-      <div class="top-left">
-        <h1>EMU HQ TERMINAL v1.6</h1>
-        <p>&gt; EMULATED MILITARY INTELLIGENCE</p>
-      </div>
+body{
+  margin:0;
+  background:#000;
+  color:#00ff66;
+  font-family:monospace;
+  text-shadow:0 0 6px #00ff66;
+  overflow-x:auto;
+}
 
-      <div class="top-center">
-        CLASSIFIED - FOR HQ USE ONLY
-      </div>
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  background:repeating-linear-gradient(
+    to bottom,
+    rgba(0,255,100,0.04),
+    rgba(0,255,100,0.04) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  pointer-events:none;
+  z-index:9999;
+}
 
-      <div class="top-right">
-        <p>CONNECTION: SECURE *</p>
-        <p>TIME: <span id="clock">Loading...</span></p>
-        <p>DATE: <span id="date">Loading...</span></p>
-      </div>
-    </header>
+a{
+  color:#7cffad;
+  text-decoration:none;
+}
 
-    <main class="main-layout">
-      <aside class="left-column">
-        <section class="panel">
-          <div class="panel-title">FACTION OVERVIEW</div>
-          <div class="panel-content">
-            <p>FACTION: <span id="factionName">Loading...</span></p>
-            <p>RANK: <span id="factionRank">Loading...</span></p>
-            <p>RESPECT: <span id="factionRespect">Loading...</span></p>
-            <p>MEMBERS: <span id="factionMembers">Loading...</span></p>
-            <p>WAR STATUS: <span id="warStatus">Loading...</span></p>
-            <p>CHAIN: <span id="chainValue">Loading...</span></p>
-          </div>
-        </section>
+a:hover,
+.link-btn:hover{
+  color:#c9ffdd;
+}
 
-        <section class="panel">
-          <div class="panel-title">QUICK LINKS</div>
-          <div class="panel-content links">
-            <button class="link-btn" onclick="showPage('dashboard', this)">&gt; DASHBOARD</button>
-            <button class="link-btn" onclick="showPage('members', this)">&gt; FACTION MEMBERS</button>
-            <button class="link-btn" onclick="showPage('war', this)">&gt; WAR</button>
-            <button class="link-btn" onclick="showPage('chain', this)">&gt; CHAIN</button>
-            <button class="link-btn" onclick="showPage('territory', this)">&gt; TERRITORY</button>
-            <button class="link-btn" onclick="showPage('targets', this)">&gt; TARGET FINDER</button>
-            <button class="link-btn" onclick="showPage('recruiter', this)">&gt; FACTION RECRUITER</button>
-            <button class="link-btn" onclick="showPage('playerView', this)">&gt; PLAYER VIEW</button>
-            <button class="link-btn" onclick="showPage('factionScout', this)">&gt; FACTION SCOUT</button>
-            <button class="link-btn" onclick="showPage('activeWars', this)">&gt; ACTIVE WARS</button>
-            <button class="link-btn" onclick="showPage('settings', this)">&gt; SETTINGS</button>
-          </div>
-        </section>
+p{
+  margin:0 0 8px;
+}
 
-        <section class="panel">
-          <div class="panel-title">WAR TIMER</div>
-          <div class="panel-content timer-box">
-            <div class="timer-label">TIME REMAINING</div>
-            <div class="timer" id="warTimer">No active war</div>
-            <div class="timer-small">DAYS &nbsp;&nbsp; HRS &nbsp;&nbsp; MINS &nbsp;&nbsp; SECS</div>
-          </div>
-        </section>
+.terminal{
+  width:1500px;
+  margin:auto;
+  padding:14px;
+}
 
-        <section class="panel">
-          <div class="panel-title">QUICK STRIKES</div>
-          <div class="panel-content">
-            <div class="target-controls quick-strike-tabs">
-              <button type="button" class="save-btn" data-strike-view="retals" onclick="setQuickStrikeView('retals')">RETALS</button>
-              <button type="button" class="save-btn" data-strike-view="medouts" onclick="setQuickStrikeView('medouts')">MED OUTS</button>
-            </div>
-            <div class="intel-list strike-list" id="quickStrikeTargets">Waiting for faction data.</div>
-          </div>
-        </section>
-      </aside>
+.topbar{
+  border:1px solid #00ff66;
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  align-items:start;
+  padding:14px;
+  margin-bottom:16px;
+  background:rgba(0,20,0,0.45);
+  box-shadow:0 0 14px rgba(0,255,100,0.4);
+}
 
-      <section class="center-column">
-        <div id="dashboard" class="page">
-        <div class="center-title">EMU HQ TERMINAL v1.6</div>
+.topbar h1{
+  margin:0;
+  font-size:24px;
+}
 
-          <section class="api-window">
-            <div class="api-header">
-              <span>&gt; TORN API CONNECTION</span>
-              <div class="window-buttons">
-                <span>-</span>
-                <span>x</span>
-              </div>
-            </div>
+.top-center{
+  text-align:center;
+  font-size:18px;
+  margin-top:18px;
+}
 
-            <div class="profile-wrap">
-              <img id="playerPfp" class="pfp" src="https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png" alt="Player profile" />
+.top-right{
+  text-align:right;
+}
 
-              <h2 id="playerName">Loading...</h2>
-              <div id="playerId">[Loading]</div>
+.main-layout{
+  display:grid;
+  grid-template-columns:320px 1fr 320px;
+  gap:16px;
+}
 
-              <div class="user-bars">
-                <div class="bar-box">
-                  ENERGY
-                  <strong id="energyValue">-</strong>
-                </div>
+.panel{
+  border:1px solid #00ff66;
+  margin-bottom:16px;
+  background:rgba(0,20,0,0.45);
+  box-shadow:0 0 12px rgba(0,255,100,0.35);
+}
 
-                <div class="bar-box">
-                  NERVE
-                  <strong id="nerveValue">-</strong>
-                </div>
-              </div>
+.panel-title{
+  padding:14px;
+  border-bottom:1px solid #00ff66;
+  font-size:18px;
+}
 
-              <div class="rank-tag" id="playerRank">Loading...</div>
+.panel-content{
+  padding:14px;
+  line-height:1.7;
+}
 
-              <div class="stats-grid">
-                <div class="stat"><span>LEVEL</span><strong id="playerLevel">-</strong></div>
-                <div class="stat"><span>AGE</span><strong id="playerAge">-</strong><small id="playerAgeDays">- days</small></div>
-                <div class="stat"><span>LVL/DAY</span><strong id="levelDay">-</strong></div>
-                <div class="stat"><span>FRENEMIES</span><strong id="frenemiesValue">+0 / 0</strong></div>
-                <div class="stat"><span>HONOR</span><strong id="honorValue">-</strong></div>
-                <div class="stat"><span>AWARDS</span><strong id="awardsValue">-</strong></div>
-                <div class="stat"><span>KARMA</span><strong id="karmaValue">-</strong></div>
-                <div class="stat"><span>FORUM</span><strong id="forumValue">-</strong></div>
-                <div class="stat"><span>FACTION</span><strong id="playerFactionValue">-</strong></div>
-                <div class="stat"><span>SPOUSE</span><strong id="spouseValue">-</strong></div>
-                <div class="stat"><span>PROPERTY</span><strong id="propertyValue">-</strong></div>
-              </div>
+.links{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
 
-              <div class="connection-status">LOCKED CONNECTION SECURE</div>
-            </div>
-          </section>
+.link-btn{
+  background:none;
+  border:none;
+  color:#00ff66;
+  font-family:monospace;
+  text-align:left;
+  font-size:16px;
+  cursor:pointer;
+}
 
-          <section class="panel dashboard-panel">
-            <div class="panel-title">JOB POINTS</div>
-            <div class="panel-content" id="jobPointsPanel">Loading from your Torn API...</div>
-          </section>
+.link-btn.active{
+  color:#c9ffdd;
+}
 
-          <section class="panel dashboard-panel">
-            <div class="panel-title">XANAX / REFILLS</div>
-            <div class="panel-content tool-cards" id="dashboardUsagePanel">Loading from your Torn API...</div>
-          </section>
-        </div>
+.link-btn:disabled,
+.locked-link{
+  cursor:not-allowed;
+  opacity:.45;
+}
 
-        <div id="members" class="page">
-          <section class="panel">
-            <div class="panel-title">FACTION MEMBERS</div>
-            <div class="panel-content">
-              <div class="target-controls member-status-tabs">
-                <button type="button" class="save-btn" data-member-view="status" onclick="setMemberView('status')">STATUS</button>
-                <button type="button" class="save-btn" data-member-view="inactive" onclick="setMemberView('inactive')">INACTIVE 1D+</button>
-              </div>
+.center-title{
+  text-align:center;
+  font-size:46px;
+  margin-bottom:22px;
+}
 
-              <div data-member-panel="status">
-                <div class="sub-title">ONLINE MEMBERS</div>
-                <div class="intel-list" id="onlineMembers">Loading...</div>
+.api-window{
+  border:1px solid #00ff66;
+  background:rgba(0,15,0,0.55);
+  box-shadow:0 0 18px rgba(0,255,100,0.5);
+}
 
-                <div class="sub-title">FACTION HOSPITAL</div>
-                <p class="scan-line">SORTED BY RELEASE TIME</p>
-                <div class="data-table-wrap">
-                  <table class="data-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Lvl</th>
-                        <th>Status</th>
-                        <th>Reason</th>
-                        <th>ETA</th>
-                        <th>Open</th>
-                      </tr>
-                    </thead>
-                    <tbody id="hospitalTable">
-                      <tr><td colspan="6">Loading...</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="sub-title">FLIGHT TRACKER</div>
-                <div class="intel-list" id="factionFlights">Loading...</div>
-              </div>
+.api-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  border-bottom:1px solid #00ff66;
+  padding:16px 22px;
+  font-size:18px;
+}
 
-              <div data-member-panel="inactive">
-                <div class="sub-title">INACTIVE MEMBERS</div>
-                <p class="scan-line">LAST ACTION 1 DAY OR OLDER</p>
-                <div class="intel-list" id="inactiveMembers">Loading...</div>
-              </div>
-            </div>
-          </section>
-        </div>
+.window-buttons{
+  display:flex;
+  gap:20px;
+  font-size:32px;
+}
 
-        <div id="war" class="page">
-          <section class="panel">
-            <div class="panel-title">RETALS / WAR</div>
-            <div class="panel-content">
-              <p class="scan-line">LAST CHECKED: <span id="warLastChecked">-</span></p>
-              <div id="warOverview" class="intel-list">Loading...</div>
+.profile-wrap{
+  padding:28px;
+  text-align:center;
+}
 
-              <div class="tool-actions">
-                <button class="save-btn" onclick="refreshWarTools()">REFRESH MEMBERS</button>
-                <button class="save-btn" onclick="showPage('chain', document.querySelectorAll('.link-btn')[3])">CHAIN</button>
-              </div>
+.pfp{
+  width:180px;
+  height:180px;
+  object-fit:cover;
+  border-radius:18px;
+  border:1px solid #00ff66;
+  box-shadow:0 0 18px #00ff66;
+}
 
-              <div class="sub-title">ENEMY TARGETS</div>
-              <div class="target-controls war-status-tabs">
-                <button type="button" class="save-btn" data-war-view="all" onclick="setWarView('all')">ALL STATUS</button>
-                <button type="button" class="save-btn" data-war-view="okay" onclick="setWarView('okay')">HOSPITAL / OKAY</button>
-                <button type="button" class="save-btn" data-war-view="overseas" onclick="setWarView('overseas')">OVERSEAS</button>
-                <button type="button" class="save-btn" data-war-view="flights" onclick="setWarView('flights')">FLIGHT ETAS</button>
-              </div>
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th class="sortable-th" onclick="setWarSortMode('level')">Lvl</th>
-                      <th class="sortable-th" onclick="setWarSortMode('stats')">Stats</th>
-                      <th class="sortable-th" onclick="setWarSortMode('status')">Desc</th>
-                      <th>ETA</th>
-                      <th>Attack</th>
-                    </tr>
-                  </thead>
-                  <tbody id="warTargetsTable">
-                    <tr><td colspan="6">Waiting for war data.</td></tr>
-                  </tbody>
-                </table>
-              </div>
+#playerName{
+  font-size:40px;
+  margin:18px 0 6px;
+}
 
-              <div class="sub-title">ENEMY HOSPITAL</div>
-              <div id="enemyHospitalList" class="intel-list">Waiting for war data.</div>
-            </div>
-          </section>
-        </div>
+.rank-tag{
+  display:inline-block;
+  border:1px solid #00ff66;
+  padding:8px 18px;
+  margin:14px 0 28px;
+}
 
-        <div id="chain" class="page">
-          <section class="panel">
-            <div class="panel-title">CHAIN</div>
-            <div class="panel-content" id="chainPanel">Loading...</div>
-          </section>
-        </div>
+.user-bars{
+  display:flex;
+  justify-content:center;
+  gap:14px;
+  margin:14px 0 20px;
+  flex-wrap:wrap;
+}
 
-        <div id="territory" class="page">
-          <section class="panel">
-            <div class="panel-title">TERRITORY</div>
-            <div class="panel-content">Territory tracker coming soon.</div>
-          </section>
-        </div>
+.bar-box{
+  border:1px solid #00ff66;
+  background:rgba(0,20,0,0.45);
+  padding:10px 16px;
+  min-width:140px;
+  text-align:center;
+}
 
-        <div id="targets" class="page">
-          <section class="panel">
-            <div class="panel-title">TARGET FINDER</div>
-            <div class="panel-content">
-              <p class="scan-line">ESTIMATES VIA EMU BS TRACKER</p>
-              <div class="target-controls">
-                <button type="button" class="save-btn" data-target-preset="level" onclick="setTargetPreset('level')">LEVELLING</button>
-                <button type="button" class="save-btn" data-target-preset="respect" onclick="setTargetPreset('respect')">RESPECT</button>
-                <button type="button" class="save-btn active-tool" data-target-preset="custom" onclick="setTargetPreset('custom')">CUSTOM</button>
-                <button type="button" class="save-btn" data-target-preset="manual" onclick="setTargetPreset('manual')">MANUAL</button>
-              </div>
+.bar-box strong{
+  display:block;
+  margin-top:6px;
+  font-size:24px;
+}
 
-              <div class="tool-grid" id="targetFilterGrid">
-                <label>MIN LEVEL<input id="targetMinLevel" type="number" min="1" max="100" value="1" /></label>
-                <label>MAX LEVEL<input id="targetMaxLevel" type="number" min="1" max="100" value="100" /></label>
-                <label class="filter-toggle"><input id="targetUseFF" type="checkbox" onchange="syncTargetSearchModes()" /> USE FF DIFFICULTY</label>
-                <label class="filter-toggle"><input id="targetUseStats" type="checkbox" onchange="syncTargetSearchModes()" /> USE CUSTOM BATTLE STATS</label>
-                <input id="targetMinFF" type="hidden" value="1" />
-                <label class="range-tool" id="targetFFControls">TARGET DIFFICULTY
-                  <span class="range-line">
-                    <input id="targetMaxFF" type="range" min="1.01" max="5" step="0.05" value="3" oninput="enableTargetFFMode(); updateTargetFFLabel()" />
-                    <input id="targetMaxFFNumber" class="ff-number" type="number" min="1.01" max="5" step="0.05" value="3" oninput="setTargetFFFromNumber()" />
-                    <strong id="targetFFValue">FF 3</strong>
-                  </span>
-                  <small>Higher FF = harder target.</small>
-                </label>
-                <label>PER PAGE<input id="targetLimit" type="number" min="1" max="50" value="20" /></label>
-                <label id="targetStatsControls">STATS CEILING
-                  <select id="targetStatsPreset" onchange="setTargetStatsPreset(this.value)">
-                    <option value="any">ANY</option>
-                    <option value="100k">UNDER 100K</option>
-                    <option value="500k">UNDER 500K</option>
-                    <option value="1m">UNDER 1M</option>
-                    <option value="10m">UNDER 10M</option>
-                    <option value="20m">UNDER 20M</option>
-                    <option value="custom">CUSTOM</option>
-                  </select>
-                </label>
-                <label data-target-stats-control>MIN STATS<input id="targetMinStats" type="text" placeholder="100k, 1m, 1b" /></label>
-                <label data-target-stats-control>MAX STATS<input id="targetMaxStats" type="text" placeholder="100k, 1m, 1b" /></label>
-                <label>INACTIVE
-                  <select id="targetInactive">
-                    <option value="1">200+ DAYS</option>
-                    <option value="0">ACTIVE / ANY</option>
-                  </select>
-                </label>
-                <label>FACTIONLESS
-                  <select id="targetFactionless">
-                    <option value="0">FALSE</option>
-                    <option value="1">TRUE</option>
-                  </select>
-                </label>
-              </div>
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:16px;
+}
 
-              <div class="tool-grid manual-targets" id="manualTargetGrid">
-                <label>PLAYER IDS<input id="manualTargetIds" type="text" placeholder="12345, 67890" /></label>
-              </div>
+.stat{
+  border:1px solid #00ff66;
+  padding:24px;
+  background:rgba(0,20,0,0.45);
+}
 
-              <div class="tool-actions">
-                <button type="button" class="save-btn" data-tool-action="search-targets" onclick="searchTargets()">SEARCH TARGETS</button>
-                <button type="button" class="save-btn" id="targetPrevPage" onclick="changeTargetPage(-1)" disabled>PREV PAGE</button>
-                <button type="button" class="save-btn" onclick="changeTargetPage(1)">NEXT TARGETS</button>
-                <button type="button" class="save-btn" data-tool-action="copy-target-ids" onclick="copyTargetIds()">COPY IDS</button>
-                <span id="targetPageStatus" class="muted">PAGE 1 / 1</span>
-                <span id="targetStatus" class="muted">Ready.</span>
-              </div>
+.stat span{
+  display:block;
+  margin-bottom:12px;
+  opacity:.8;
+}
 
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Player</th>
-                      <th>Action</th>
-                      <th>Lvl</th>
-                      <th>Fair Fight</th>
-                      <th>Stats</th>
-                      <th>Last Action</th>
-                    </tr>
-                  </thead>
-                  <tbody id="targetResults">
-                    <tr><td colspan="6">No targets loaded.</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        </div>
+.stat strong{
+  font-size:34px;
+  overflow-wrap:anywhere;
+}
 
-        <div id="recruiter" class="page">
-          <section class="panel">
-            <div class="panel-title">FACTION RECRUITER</div>
-            <div class="panel-content">
-              <p class="scan-line">FACTIONLESS PLAYER SEARCH</p>
-              <div class="tool-grid">
-                <label>MIN LEVEL<input id="recruitMinLevel" type="number" min="1" max="100" value="1" /></label>
-                <label>MAX LEVEL<input id="recruitMaxLevel" type="number" min="1" max="100" value="100" /></label>
-                <label>LIMIT<input id="recruitLimit" type="number" min="1" max="50" value="20" /></label>
-                <label>LAST ACTIVE
-                  <select id="recruitActivity">
-                    <option value="0-86400">0-24 hours</option>
-                    <option value="0-900">0-15 minutes</option>
-                    <option value="900-3600">15 minutes-1 hour</option>
-                    <option value="3600-21600">1-6 hours</option>
-                    <option value="21600-86400">6-24 hours</option>
-                  </select>
-                </label>
-              </div>
-              <div class="tool-actions">
-                <button type="button" class="save-btn" onclick="searchRecruiter()">SEARCH RECRUITS</button>
-                <button type="button" class="save-btn" onclick="openExternalTool('https://www.torn.com/page.php?sid=UserList')">OPEN TORN SEARCH</button>
-                <button type="button" class="save-btn" onclick="copyRecruitIds()">COPY IDS</button>
-                <span id="recruiterStatus" class="muted">Ready.</span>
-              </div>
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Player</th>
-                      <th>Lvl</th>
-                      <th>Stats</th>
-                      <th>Last Active</th>
-                      <th>Status</th>
-                      <th>Open</th>
-                    </tr>
-                  </thead>
-                  <tbody id="recruiterResults">
-                    <tr><td colspan="6">No recruits loaded.</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        </div>
+.stat small{
+  display:block;
+  margin-top:6px;
+  opacity:.72;
+}
 
-        <div id="playerView" class="page">
-          <section class="panel">
-            <div class="panel-title">PLAYER VIEW</div>
-            <div class="panel-content">
-              <p class="scan-line">PROFILE + ESTIMATES VIA EMU BS TRACKER</p>
-              <div class="tool-grid tool-grid-compact">
-                <label>PLAYER ID OR URL<input id="playerLookupId" type="text" placeholder="1844049 or torn.com/profiles.php?XID=1844049" /></label>
-              </div>
-              <div class="tool-actions">
-                <button type="button" class="save-btn" data-tool-action="load-player" onclick="loadPlayerView()">LOAD PLAYER</button>
-                <button type="button" class="save-btn" data-tool-action="load-self-player" onclick="loadSelfPlayerView()">USE MY ID</button>
-                <button type="button" class="save-btn" onclick="openPlayerProfile()">OPEN TORN</button>
-                <span id="playerViewStatus" class="muted">Ready.</span>
-              </div>
-              <div id="playerDashboardCard"></div>
-              <div id="playerViewSummary" class="tool-cards"></div>
-              <div id="playerUsageSummary" class="tool-cards"></div>
+.jobpoints-grid{
+  display:grid;
+  gap:14px;
+  grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));
+}
 
-              <div class="sub-title">HISTORY WITH YOU / FACTION</div>
-              <div id="playerRelationPanel" class="intel-list">No player loaded.</div>
+.timer-box{
+  text-align:center;
+}
 
-              <div class="sub-title">FLIGHT TRACKER</div>
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead><tr><th>Trip</th><th>Method</th><th>Earliest</th><th>Latest</th><th>Notes</th></tr></thead>
-                  <tbody id="playerFlightsTable"><tr><td colspan="5">No player loaded.</td></tr></tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        </div>
+.timer{
+  font-size:42px;
+  margin:18px 0;
+  min-height:58px;
+}
 
-        <div id="factionScout" class="page">
-          <section class="panel">
-            <div class="panel-title">FACTION SCOUT</div>
-            <div class="panel-content">
-              <p class="scan-line">TORN ROSTER + ESTIMATES VIA EMU BS TRACKER</p>
-              <div class="tool-grid tool-grid-compact">
-                <label>FACTION ID<input id="scoutFactionId" type="text" placeholder="34623" /></label>
-                <label>MEMBER LIMIT<input id="scoutMemberLimit" type="number" min="1" max="100" value="100" /></label>
-              </div>
-              <div class="tool-actions">
-                <button class="save-btn" onclick="loadFactionScout()">LOAD FACTION</button>
-                <button class="save-btn" onclick="loadCurrentFactionScout()">CURRENT FACTION</button>
-                <button class="save-btn" onclick="loadEnemyFactionScout()">CURRENT ENEMY</button>
-                <button class="save-btn" onclick="openFactionProfile()">OPEN TORN</button>
-                <span id="factionScoutStatus" class="muted">Ready.</span>
-              </div>
-              <div id="factionScoutSummary" class="tool-cards"></div>
+.timer-small{
+  font-size:14px;
+}
 
-              <div class="sub-title">ACTIVITY SNAPSHOT</div>
-              <div id="factionActivitySummary" class="tool-cards"></div>
+.connection-status{
+  border:1px solid #00ff66;
+  padding:18px;
+  margin-top:28px;
+  font-size:28px;
+}
 
-              <div class="sub-title">MEMBERS</div>
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead><tr><th>Player</th><th>Lvl</th><th>Status</th><th>Fair Fight</th><th>Stats</th><th>Last Action</th><th>Attack</th></tr></thead>
-                  <tbody id="factionScoutMembers"><tr><td colspan="7">No faction loaded.</td></tr></tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        </div>
+.footer{
+  margin-top:18px;
+  border:1px solid #00ff66;
+  padding:16px;
+  display:flex;
+  justify-content:space-between;
+  background:rgba(0,20,0,0.45);
+}
 
-        <div id="activeWars" class="page">
-          <section class="panel">
-            <div class="panel-title">ACTIVE RANKED WARS</div>
-            <div class="panel-content">
-              <p class="scan-line">LIVE WARFARE, TERRITORY PRESSURE, AND CHAINS</p>
-              <div class="tool-actions">
-                <button class="save-btn" onclick="loadActiveWars()">LOAD WARFARE</button>
-                <span id="activeWarsStatus" class="muted">Ready.</span>
-              </div>
-              <div class="sub-title">RANKED WARS</div>
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead><tr><th>Faction A</th><th>Score</th><th>Faction B</th><th>Score</th><th>Status</th><th>Started</th></tr></thead>
-                  <tbody id="activeWarsTable"><tr><td colspan="6">No wars loaded.</td></tr></tbody>
-                </table>
-              </div>
-              <div class="sub-title">TERRITORY ASSAULTS</div>
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead><tr><th>Territory</th><th>Faction A</th><th>Faction B</th><th>Status</th><th>Started</th></tr></thead>
-                  <tbody id="activeTerritoryTable"><tr><td colspan="5">No territory assaults loaded.</td></tr></tbody>
-                </table>
-              </div>
-              <div class="sub-title">LIVE CHAINS</div>
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead><tr><th>Faction</th><th>Chain</th><th>Timeout</th><th>Started</th><th>Status</th></tr></thead>
-                  <tbody id="liveChainsTable"><tr><td colspan="5">No live chains loaded.</td></tr></tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        </div>
+input,
+select{
+  width:100%;
+  padding:14px;
+  background:#000;
+  color:#00ff66;
+  border:1px solid #00ff66;
+  font-family:monospace;
+  margin-bottom:14px;
+}
 
-        <div id="settings" class="page active-page">
-          <section class="panel">
-            <div class="panel-title">SETTINGS</div>
-            <div class="panel-content">
-            <div class="key-access-note">FULL ACCESS KEY NEEDED</div>
-            <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
-            <button onclick="saveKey()" class="save-btn">SAVE SETTINGS</button>
-            <div id="status">Enter Torn API key to unlock terminal.</div>
-          </div>
-          </section>
-        </div>
-      </section>
+select{
+  appearance:none;
+  background:#000;
+}
 
-      <aside class="right-column">
-        <section class="panel">
-          <div class="panel-title">ALERTS</div>
-          <div class="panel-content">
-            <p>[!] CHAIN: <span id="chainAlert">Loading...</span></p>
-            <p>[!] TERRITORY: <span id="territoryAlert">No assault detected</span></p>
-          </div>
-        </section>
+.key-access-note{
+  border:1px solid #ffd466;
+  background:rgba(126,85,0,0.18);
+  color:#ffd466;
+  margin-bottom:14px;
+  padding:12px 14px;
+  text-align:center;
+  text-shadow:0 0 6px rgba(255,212,102,0.72);
+}
 
-        <section class="panel">
-          <div class="panel-title">ONLINE NOW</div>
-          <div class="panel-content intel-list" id="onlineMembersSide">Loading...</div>
-        </section>
+.save-btn{
+  padding:12px 18px;
+  background:#001800;
+  color:#00ff66;
+  border:1px solid #00ff66;
+  font-family:monospace;
+  cursor:pointer;
+}
 
-        <section class="panel">
-          <div class="panel-title">RECENT ATTACKS</div>
-          <div class="panel-content intel-list" id="recentAttacks">Loading...</div>
-        </section>
-      </aside>
-    </main>
+.save-btn.active-tool{
+  background:#00ff66;
+  color:#001800;
+  text-shadow:none;
+}
 
-    <footer class="footer">
-      <span>&gt; SYSTEM ONLINE AND OPERATIONAL</span>
-      <span>&gt; HQ EYES EVERYWHERE</span>
-      <span>&gt; NO MERCY. NO SURRENDER.</span>
-    </footer>
-  </div>
+.page{
+  display:none;
+}
 
-  <script src="app.js?v=20260522-ff-layout-1"></script>
-</body>
-</html>
+.active-page{
+  display:block;
+}
+
+.intel-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.intel-row{
+  border:1px solid rgba(0,255,102,0.55);
+  padding:9px 10px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  background:rgba(0,10,0,0.42);
+}
+
+.intel-row span:first-child{
+  min-width:0;
+}
+
+.intel-row small{
+  display:block;
+  margin-top:4px;
+  opacity:.74;
+  line-height:1.35;
+  text-shadow:none;
+}
+
+.sub-title{
+  margin:18px 0 10px;
+  padding-bottom:8px;
+  border-bottom:1px solid rgba(0,255,102,0.5);
+  font-size:16px;
+}
+
+.scan-line{
+  color:#c9ffdd;
+  letter-spacing:0;
+  opacity:.88;
+}
+
+.tool-actions,
+.target-controls{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+  margin:14px 0;
+}
+
+.tool-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(120px,1fr));
+  gap:12px;
+  margin:14px 0;
+}
+
+.tool-grid-compact{
+  grid-template-columns:repeat(2,minmax(160px,1fr));
+}
+
+.tool-grid label{
+  display:block;
+  font-size:12px;
+  color:#c9ffdd;
+  opacity:.9;
+}
+
+.tool-grid input,
+.tool-grid select{
+  margin:6px 0 0;
+  padding:10px;
+}
+
+.tool-grid input[type="range"]{
+  min-width:0;
+  width:100%;
+  padding:0;
+  accent-color:#00ff66;
+}
+
+.range-tool{
+  grid-column:span 2;
+  gap:6px;
+  min-width:0;
+}
+
+.range-line{
+  display:grid;
+  grid-template-columns:minmax(140px,1fr) 78px 58px;
+  align-items:center;
+  gap:10px;
+  min-height:38px;
+  min-width:0;
+}
+
+.range-line strong{
+  min-width:54px;
+  color:#c9ffdd;
+  text-align:right;
+}
+
+.range-line .ff-number{
+  width:100%;
+  margin:0;
+  padding:8px;
+}
+
+.range-tool small{
+  color:#c9ffdd;
+  opacity:.84;
+  text-shadow:none;
+}
+
+.filter-toggle{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-height:56px;
+}
+
+.filter-toggle input{
+  width:auto;
+  margin:0;
+}
+
+.filter-disabled{
+  opacity:.48;
+}
+
+.hidden,
+.manual-targets{
+  display:none;
+}
+
+.manual-targets.active-manual{
+  display:grid;
+  grid-template-columns:1fr;
+}
+
+.tool-card-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(160px,1fr));
+  gap:12px;
+  margin:14px 0;
+}
+
+.tool-card{
+  border:1px solid rgba(0,255,102,0.55);
+  background:rgba(0,10,0,0.42);
+  padding:12px;
+  min-height:78px;
+}
+
+.tool-card span{
+  display:block;
+  color:#c9ffdd;
+  font-size:12px;
+  opacity:.84;
+  margin-bottom:8px;
+}
+
+.tool-card strong{
+  display:block;
+  color:#00ff66;
+  font-size:18px;
+  overflow-wrap:anywhere;
+}
+
+.launcher-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(140px,1fr));
+  gap:10px;
+}
+
+.launcher-grid .save-btn{
+  width:100%;
+}
+
+.lookup-dashboard{
+  margin:16px 0;
+}
+
+.lookup-profile-wrap{
+  padding-top:18px;
+}
+
+.lookup-profile-wrap h2{
+  font-size:24px;
+  margin:8px 0;
+  overflow-wrap:anywhere;
+}
+
+.lookup-profile-wrap .pfp{
+  width:92px;
+  height:92px;
+}
+
+.lookup-stats-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+
+.lookup-stats-grid .stat strong{
+  font-size:16px;
+  overflow-wrap:anywhere;
+}
+
+.data-table-wrap{
+  width:100%;
+  overflow-x:auto;
+  border:1px solid rgba(0,255,102,0.55);
+  background:rgba(0,10,0,0.42);
+}
+
+.data-table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:720px;
+}
+
+.data-table th,
+.data-table td{
+  border-bottom:1px solid rgba(0,255,102,0.35);
+  padding:9px 10px;
+  text-align:left;
+  vertical-align:middle;
+  text-shadow:none;
+}
+
+.data-table th{
+  color:#c9ffdd;
+  background:rgba(0,255,102,0.08);
+  font-weight:normal;
+}
+
+.group-row td{
+  background:rgba(0,255,102,0.13);
+  color:#00ff66;
+  font-weight:700;
+  letter-spacing:0;
+  text-transform:uppercase;
+  border-top:1px solid rgba(0,255,102,0.45);
+  border-bottom:1px solid rgba(0,255,102,0.45);
+}
+
+.sortable-th{
+  cursor:pointer;
+}
+
+.sortable-th:hover{
+  color:#00ff66;
+  text-shadow:0 0 8px rgba(0,255,102,0.65);
+}
+
+.data-table tr:last-child td{
+  border-bottom:none;
+}
+
+.data-table td small{
+  display:block;
+  margin-top:4px;
+  max-width:220px;
+  color:#c9ffdd;
+  opacity:.7;
+  line-height:1.3;
+  white-space:normal;
+}
+
+.compact-table{
+  min-width:0;
+}
+
+.compact-table td:last-child,
+.compact-table th:last-child{
+  text-align:right;
+  color:#ff5fb8;
+}
+
+.hit-link{
+  display:inline-block;
+  border:1px solid rgba(0,255,102,0.7);
+  padding:2px 7px;
+  min-width:42px;
+  text-align:center;
+  color:#c9ffdd;
+}
+
+.hit-link:hover{
+  background:#00ff66;
+  color:#001800;
+  text-shadow:none;
+}
+
+.danger-hit{
+  border-color:#ff7d7d;
+  color:#ff9b9b;
+}
+
+.stat-pill,
+.status-pill{
+  display:inline-block;
+  border:1px solid rgba(0,255,102,0.55);
+  padding:1px 6px;
+  white-space:nowrap;
+  background:rgba(0,255,102,0.08);
+}
+
+.stat-pill{
+  color:#ff9b9b;
+  border-color:#ff5f6f;
+}
+
+.status-hosp{
+  color:#ff7d7d;
+  border-color:#ff5f6f;
+}
+
+.status-travel{
+  color:#ffd466;
+  border-color:#ffd466;
+}
+
+.status-okay{
+  color:#9dff9d;
+}
+
+.badge{
+  border:1px solid rgba(0,255,102,0.55);
+  padding:1px 6px;
+  white-space:nowrap;
+}
+
+.muted{
+  opacity:.72;
+}
+
+.danger{
+  color:#ff7d7d;
+  text-shadow:0 0 6px #ff4d4d;
+}
+
+.warning{
+  color:#ffd466;
+  text-shadow:0 0 6px #c7951f;
+}
+
+.good{
+  color:#9dff9d;
+}
+
+.attack-time,
+.countdown,
+.travel-eta{
+  white-space:nowrap;
+}
+
+.travel-eta{
+  color:#ffd466;
+}
+
+@media(max-width:1600px){
+  .terminal{
+    transform:scale(.72);
+    transform-origin:top left;
+    width:1500px;
+  }
+
+  body{
+    min-width:1080px;
+  }
+}
+
+@media(max-width:900px){
+  .tool-grid{
+    grid-template-columns:repeat(2,minmax(120px,1fr));
+  }
+
+  .tool-card-grid,
+  .launcher-grid{
+    grid-template-columns:repeat(2,minmax(140px,1fr));
+  }
+
+  .target-controls .save-btn,
+  .tool-actions .save-btn{
+    flex:1 1 150px;
+  }
+}
