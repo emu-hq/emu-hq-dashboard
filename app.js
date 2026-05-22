@@ -171,10 +171,11 @@ async function loadAllData() {
     loadFactionData(),
     getData(tornUrl(2, "/faction", { selections: "rankedwars", key: getTornApiKey() })),
     loadFactionAttacksData(),
-    loadUserHonorsData()
+    loadUserHonorsData(),
+    loadUserJobPointsData()
   ];
 
-  const [userResult, factionResult, warsResult, attacksResult, honorsResult] =
+  const [userResult, factionResult, warsResult, attacksResult, honorsResult, jobPointsResult] =
     await Promise.allSettled(requests);
 
   if (sequence !== loadSequence) return;
@@ -189,6 +190,12 @@ async function loadAllData() {
     connected = true;
   } else {
     warnings.push(`user: ${userResult.reason.message}`);
+  }
+
+  if (jobPointsResult.status === "fulfilled") {
+    renderJobPoints(jobPointsResult.value);
+  } else {
+    setHtml("jobPointsPanel", emptyMessage("Job points unavailable for this key."));
   }
 
   if (factionResult.status === "fulfilled") {
@@ -275,6 +282,10 @@ async function loadUserHonorsData() {
   }
 }
 
+function loadUserJobPointsData() {
+  return getData(tornUrl(2, "/user/jobpoints", { key: getTornApiKey() }));
+}
+
 async function loadOwnBattleStats() {
   if (!hasTornApiKey() || ownBattleStats) return ownBattleStats;
 
@@ -336,6 +347,7 @@ function renderNoKeyState() {
   setHtml("onlineMembers", emptyMessage("Enter API key in Settings."));
   setHtml("onlineMembersSide", emptyMessage("Enter API key in Settings."));
   setHtml("hospitalMembers", emptyMessage("Enter API key in Settings."));
+  setHtml("factionFlights", emptyMessage("Enter API key in Settings."));
   setHtml("hospitalTable", emptyTableRow("Enter API key in Settings.", 6));
   setHtml("warOverview", emptyMessage("Enter API key in Settings."));
   setHtml("enemyHospitalList", emptyMessage("Enter API key in Settings."));
@@ -355,6 +367,7 @@ function renderNoKeyState() {
   setHtml("activeWarsTable", emptyTableRow("Enter API key in Settings.", 6));
   setHtml("activeTerritoryTable", emptyTableRow("Enter API key in Settings.", 5));
   setHtml("liveChainsTable", emptyTableRow("Enter API key in Settings.", 5));
+  setHtml("jobPointsPanel", emptyMessage("Enter API key in Settings."));
 }
 
 function loadUser(user, honorsData) {
@@ -370,6 +383,7 @@ function loadUser(user, honorsData) {
 
   const age = Number(profile.age || user.age || 0);
   setText("playerAge", age ? `${Math.floor(age / 365)} years` : "-");
+  setText("playerAgeDays", age ? `${formatNumber(age)} days` : "- days");
 
   const level = Number(profile.level || user.level || 0);
   const lvlDay = age && level
@@ -382,6 +396,8 @@ function loadUser(user, honorsData) {
   setText("awardsValue", profile.awards ?? user.awards ?? "-");
   setText("karmaValue", profile.karma ?? user.karma ?? "-");
   setText("forumValue", profile.forum_posts ?? user.forum_posts ?? "-");
+  setText("spouseValue", formatProfileSpouse(profile.spouse || user.spouse));
+  setText("propertyValue", profile.property?.name || user.property?.name || profile.property || user.property || "-");
 
   const energy = bars.energy || user.energy || profile.energy;
   const nerve = bars.nerve || user.nerve || profile.nerve;
@@ -444,6 +460,7 @@ function loadFaction(data) {
   latestFactionChain = chain && typeof chain === "object" ? chain : null;
 
   setText("factionName", faction.name ?? "-");
+  setText("playerFactionValue", formatFactionDashboardLabel(faction));
   setText("factionRank", formatFactionRank(faction));
   setText("factionRespect", formatNumber(faction.respect));
   setText("factionMembers", `${members.length || faction.members || "-"}`);
@@ -468,6 +485,47 @@ function renderFactionMembers(members) {
   setText("factionMembers", `${members.length || "-"}`);
   renderOnlineMembers(members);
   renderOwnHospital(members);
+  renderFactionFlights(members);
+}
+
+function formatFactionDashboardLabel(faction) {
+  const name = faction?.name || "-";
+  const tag = faction?.tag ? ` [${faction.tag}]` : "";
+  return `${name}${tag}`;
+}
+
+function formatProfileSpouse(spouse) {
+  if (!spouse || typeof spouse !== "object") return "-";
+  const days = Number(spouse.days_married || 0);
+  const age = days ? ` - ${formatNumber(days)} days` : spouse.status ? ` - ${spouse.status}` : "";
+  return `${spouse.name || "Unknown"}${age}`;
+}
+
+function renderJobPoints(data) {
+  const jobpoints = data.jobpoints || {};
+  const jobs = Object.entries(jobpoints.jobs || {});
+  const companies = (jobpoints.companies || []).map(entry => [
+    entry.company?.name || entry.company_name || entry.name || "Company",
+    entry.points ?? entry.jobpoints ?? entry.value ?? 0
+  ]);
+
+  setHtml("jobPointsPanel", `
+    <div class="jobpoints-grid">
+      ${jobPointsTable("PRIVATE COMPANIES", companies)}
+      ${jobPointsTable("TORN CITY JOBS", jobs.map(([name, points]) => [titleCase(name), points]))}
+    </div>
+  `);
+}
+
+function jobPointsTable(title, rows) {
+  return `
+    <div class="data-table-wrap">
+      <table class="data-table compact-table">
+        <thead><tr><th>${escapeHtml(title)}</th><th>Points</th></tr></thead>
+        <tbody>${rows.length ? rows.map(([name, points]) => `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(formatNumber(points))}</td></tr>`).join("") : `<tr><td colspan="2" class="muted">None returned.</td></tr>`}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 function formatRankPosition(faction) {
@@ -731,6 +789,30 @@ function renderOwnHospital(members) {
     hospital.length
       ? hospital.map(member => hospitalRow(member)).join("")
       : emptyMessage("No faction members in hospital.")
+  );
+}
+
+function renderFactionFlights(members) {
+  const travelling = members
+    .filter(isTravelling)
+    .sort((a, b) => String(getMemberStatus(a).description).localeCompare(String(getMemberStatus(b).description)));
+
+  setHtml(
+    "factionFlights",
+    travelling.length
+      ? travelling.map(member => {
+        const status = getMemberStatus(member);
+        return `
+          <div class="intel-row">
+            <span>
+              ${tableMemberLink(member)}
+              <small>${escapeHtml(status.description || status.details || "Travelling")}</small>
+            </span>
+            <span class="badge">${escapeHtml(status.state || "Travel")}</span>
+          </div>
+        `;
+      }).join("")
+      : emptyMessage("No faction members travelling.")
   );
 }
 
@@ -1443,7 +1525,8 @@ async function searchTargets() {
       ? await searchManualTargets()
       : await searchFilteredTargets();
 
-    const targets = await enrichTargetsWithBSP(normalizeTargetResults(data));
+    const verified = await filterSearchTargets(normalizeTargetResults(data));
+    const targets = await enrichTargetsWithBSP(verified);
     latestTargetResults = targets;
     renderTargetResults(targets);
     setText("targetStatus", `${targets.length} target${targets.length === 1 ? "" : "s"} loaded.`);
@@ -1452,6 +1535,23 @@ async function searchTargets() {
     setHtml("targetResults", emptyTableRow(err.message || "Target lookup failed.", 6));
     setText("targetStatus", err.message || "Target lookup failed.");
   }
+}
+
+async function filterSearchTargets(targets) {
+  if (targetPreset !== "custom") return targets;
+
+  const inactiveOnly = document.getElementById("targetInactive")?.value === "1";
+  const factionlessOnly = document.getElementById("targetFactionless")?.value === "1";
+  let filtered = targets;
+
+  if (inactiveOnly) {
+    filtered = filtered.filter(target => {
+      const age = getLastActionAgeSeconds(target);
+      return age !== null && age >= 200 * 86400;
+    });
+  }
+
+  return factionlessOnly ? verifyFactionlessTargets(filtered) : filtered;
 }
 
 async function enrichTargetsWithBSP(targets) {
@@ -1701,7 +1801,8 @@ async function loadRecruiterCandidates() {
     })
     .slice(0, limit);
 
-  const enriched = await enrichTargetsWithBSP(filtered);
+  const factionless = await verifyFactionlessTargets(filtered);
+  const enriched = await enrichTargetsWithBSP(factionless);
   return enriched;
 }
 
@@ -1714,7 +1815,33 @@ function isFactionlessCandidate(target) {
   const faction = target.faction || target.faction_id || target.factionId || target.faction_name || target.factionName;
   if (faction === undefined || faction === null || faction === "" || faction === 0 || faction === "0") return true;
   if (typeof faction === "object") return !(faction.id || faction.ID || faction.name);
-  return String(faction).toLowerCase() === "none";
+  return ["none", "n/a", "null"].includes(String(faction).toLowerCase());
+}
+
+async function verifyFactionlessTargets(targets) {
+  const verified = [];
+  const capped = targets.slice(0, 50);
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < capped.length) {
+      const target = capped[cursor++];
+      const id = target.player_id || target.id || target.target;
+      if (!/^\d+$/.test(String(id))) continue;
+
+      try {
+        const profile = normalizePlayerProfile(await loadPublicPlayerProfile(id), id);
+        if (isFactionlessCandidate(profile)) {
+          verified.push({ ...target, faction: profile.faction, faction_id: profile.factionId });
+        }
+      } catch (err) {
+        // A factionless search should not show players we could not verify.
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: 4 }, worker));
+  return verified;
 }
 
 function getLastActionAgeSeconds(target) {
@@ -1813,43 +1940,41 @@ async function loadPlayerView() {
   }
 
   const playerId = parseTargetIds(document.getElementById("playerLookupId")?.value || "")[0];
-  const historyLimit = clampNumber(inputValue("playerHistoryLimit", 25), 1, 100);
 
   if (!playerId) {
-    setText("playerViewStatus", "Enter a player ID.");
+    setText("playerViewStatus", "Enter a player ID or Torn profile URL.");
     return;
   }
 
   setText("playerViewStatus", "Loading player...");
   setHtml("playerDashboardCard", "");
   setHtml("playerViewSummary", "");
+  setHtml("playerUsageSummary", "");
   setHtml("playerRelationPanel", emptyMessage("Loading attack history..."));
-  setHtml("playerHistoryTable", emptyTableRow("Loading history...", 4));
   setHtml("playerFlightsTable", emptyTableRow("Checking flights...", 5));
 
-  const [profileResult, statsResult, historyResult, flightsResult, bspResult, attacksResult] = await Promise.allSettled([
+  const [profileResult, statsResult, flightsResult, bspResult, attacksResult, usageResult] = await Promise.allSettled([
     loadPublicPlayerProfile(playerId),
     getEmuBsData("/get-stats", { key: getTornApiKey(), targets: playerId }),
-    getEmuBsData("/get-stats-history", { key: getTornApiKey(), target: playerId, limit: historyLimit }),
     getEmuBsData("/player-flights", { key: getTornApiKey(), target: playerId }),
     getBSPData(playerId),
-    loadFactionAttacksData()
+    loadFactionAttacksData(),
+    loadPlayerUsageInsights(playerId)
   ]);
 
   let profile = profileResult.status === "fulfilled" ? normalizePlayerProfile(profileResult.value, playerId) : null;
   profile = await enrichPlayerFactionName(profile);
   const stats = statsResult.status === "fulfilled" ? normalizeTargetResults(statsResult.value)[0] : null;
-  const history = historyResult.status === "fulfilled" ? historyResult.value : null;
   const flights = flightsResult.status === "fulfilled" ? flightsResult.value : null;
   const attacks = attacksResult.status === "fulfilled" ? normalizeAttacks(attacksResult.value) : [];
-  const warnings = [...new Set([profileResult, historyResult, flightsResult, bspResult, attacksResult]
+  const warnings = [...new Set([profileResult, flightsResult, bspResult, attacksResult, usageResult]
     .filter(result => result.status === "rejected")
     .map(result => result.reason.message))];
 
   renderPlayerDashboardCard(playerId, profile, stats, bspResult.status === "fulfilled" ? bspResult.value : null, flights);
   renderPlayerViewSummary(playerId, profile, stats, bspResult.status === "fulfilled" ? bspResult.value : null, flightsResult);
+  renderPlayerUsageSummary(usageResult.status === "fulfilled" ? usageResult.value : null);
   renderPlayerRelations(playerId, attacks);
-  renderPlayerHistory(history);
   renderPlayerFlights(flights, flightsResult);
   setText("playerViewStatus", warnings.length ? `Loaded with limits: ${warnings.join(" | ")}` : "Player loaded.");
 }
@@ -1891,6 +2016,42 @@ async function loadPublicPlayerProfile(playerId) {
       }));
     }
   }
+}
+
+async function loadPlayerUsageInsights(playerId) {
+  const now = Math.floor(Date.now() / 1000);
+  const monthAgo = now - 30 * 86400;
+  const yearAgo = now - 365 * 86400;
+  const [current, month, year] = await Promise.all([
+    getPlayerHistoricStats(playerId),
+    getPlayerHistoricStats(playerId, monthAgo),
+    getPlayerHistoricStats(playerId, yearAgo)
+  ]);
+
+  return {
+    monthXanax: statDelta(current, month, "xantaken"),
+    yearXanax: statDelta(current, year, "xantaken"),
+    monthRefills: statDelta(current, month, "refills"),
+    yearRefills: statDelta(current, year, "refills")
+  };
+}
+
+function getPlayerHistoricStats(playerId, timestamp) {
+  return getData(tornUrl(2, `/user/${encodeURIComponent(playerId)}/personalstats`, {
+    stat: "xantaken,refills",
+    ...(timestamp ? { timestamp } : {}),
+    key: getTornApiKey()
+  })).then(normalizeHistoricStats);
+}
+
+function normalizeHistoricStats(data) {
+  const rows = Array.isArray(data?.personalstats) ? data.personalstats : [];
+  return Object.fromEntries(rows.map(row => [row.name, Number(row.value || 0)]));
+}
+
+function statDelta(current, prior, name) {
+  if (!Number.isFinite(current?.[name]) || !Number.isFinite(prior?.[name])) return null;
+  return Math.max(0, current[name] - prior[name]);
 }
 
 async function enrichPlayerFactionName(profile) {
@@ -1999,6 +2160,25 @@ function renderPlayerViewSummary(playerId, profile, stats, bsp, flightsResult) {
   ];
 
   renderToolCards("playerViewSummary", cards);
+}
+
+function renderPlayerUsageSummary(usage) {
+  if (!usage) {
+    setHtml("playerUsageSummary", emptyMessage("Xanax and refill history unavailable for this profile/key."));
+    return;
+  }
+
+  renderToolCards("playerUsageSummary", [
+    ["XANAX 30D", formatUsageRate(usage.monthXanax, 30)],
+    ["XANAX 1Y", formatUsageRate(usage.yearXanax, 365)],
+    ["REFILLS 30D", formatUsageRate(usage.monthRefills, 30)],
+    ["REFILLS 1Y", formatUsageRate(usage.yearRefills, 365)]
+  ]);
+}
+
+function formatUsageRate(amount, days) {
+  if (!Number.isFinite(amount)) return "Unavailable";
+  return `${formatNumber(amount)} | ${(amount / days).toFixed(2)}/day`;
 }
 
 function renderPlayerRelations(playerId, attacks) {
@@ -2654,4 +2834,5 @@ Object.assign(window, {
 });
 
 init();
+
 
