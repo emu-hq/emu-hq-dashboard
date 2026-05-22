@@ -39,7 +39,7 @@ let latestRecruiterResults = [];
 let latestFactionChain = null;
 let targetPreset = "custom";
 let warSortMode = localStorage.getItem("warSortMode") || "status";
-let warFlightMode = localStorage.getItem("warFlightMode") || "all";
+let warView = localStorage.getItem("warView") || "okay";
 let ownBattleStats = null;
 let memberStatusCache = loadMemberStatusCache();
 
@@ -1104,37 +1104,20 @@ async function enrichEnemyStats(members) {
 function renderWarTargetTable(members) {
   latestEnemyMembers = members;
   const sorted = sortEnemyTargets(members);
-  const visible = filterWarFlightMembers(sorted);
-  const groups = [
-    ["hospital", "HOSPITAL"],
-    ["okay", "OKAY / ATTACKABLE"],
-    ["travel", "FLYING / OVERSEAS"],
-    ["other", "OTHER / OFFLINE"]
-  ];
-
-  const rows = groups
-    .map(([key, label]) => {
-      const groupMembers = visible.filter(member => getWarTargetGroup(member) === key);
-      if (!groupMembers.length) return "";
-
-      return `
-        <tr class="group-row"><td colspan="6">${label} (${groupMembers.length})</td></tr>
-        ${groupMembers.map(member => warTargetRow(member)).join("")}
-      `;
-    })
-    .join("");
+  const visible = filterWarViewMembers(sorted);
+  const rows = visible.map(member => warTargetRow(member)).join("");
 
   setHtml(
     "warTargetsTable",
     rows
       ? rows
-      : emptyTableRow("No enemy members loaded.", 6)
+      : emptyTableRow(getWarViewEmptyMessage(), 6)
   );
 }
 
 function sortEnemyTargets(members) {
   return [...members].sort((a, b) => {
-    if (warFlightMode === "eta") {
+    if (warView === "flights") {
       const aTravel = getTravelInfo(a);
       const bTravel = getTravelInfo(b);
       const aEta = getFlightSortTime(aTravel);
@@ -1143,6 +1126,15 @@ function sortEnemyTargets(members) {
       const bTravelling = bTravel ? 0 : 1;
 
       return aTravelling - bTravelling || aEta - bEta || String(a.name).localeCompare(String(b.name));
+    }
+
+    if (warView === "okay") {
+      const aHospital = isHospital(a);
+      const bHospital = isHospital(b);
+      if (aHospital !== bHospital) return aHospital ? -1 : 1;
+      if (aHospital && bHospital) {
+        return getTargetSortTime(a) - getTargetSortTime(b) || String(a.name).localeCompare(String(b.name));
+      }
     }
 
     if (warSortMode === "level") {
@@ -1162,9 +1154,14 @@ function sortEnemyTargets(members) {
   });
 }
 
-function filterWarFlightMembers(members) {
-  if (warFlightMode !== "overseas") return members;
-  return members.filter(member => getTravelInfo(member)?.direction === "abroad");
+function filterWarViewMembers(members) {
+  if (warView === "overseas") return members.filter(member => getTravelInfo(member)?.direction === "abroad");
+  if (warView === "flights") return members.filter(member => {
+    const travel = getTravelInfo(member);
+    return travel && travel.direction !== "abroad";
+  });
+
+  return members.filter(member => isHospital(member) || getWarTargetGroup(member) === "okay");
 }
 
 function getFlightSortTime(travel) {
@@ -1180,15 +1177,21 @@ function setWarSortMode(mode) {
   if (latestEnemyMembers.length) renderWarTargetTable(latestEnemyMembers);
 }
 
-function setWarFlightMode(mode) {
-  warFlightMode = ["all", "eta", "overseas"].includes(mode) ? mode : "all";
-  localStorage.setItem("warFlightMode", warFlightMode);
+function setWarView(mode) {
+  warView = ["okay", "overseas", "flights"].includes(mode) ? mode : "okay";
+  localStorage.setItem("warView", warView);
 
-  document.querySelectorAll("[data-war-flight-mode]").forEach(button => {
-    button.classList.toggle("active-tool", button.dataset.warFlightMode === warFlightMode);
+  document.querySelectorAll("[data-war-view]").forEach(button => {
+    button.classList.toggle("active-tool", button.dataset.warView === warView);
   });
 
   if (latestEnemyMembers.length) renderWarTargetTable(latestEnemyMembers);
+}
+
+function getWarViewEmptyMessage() {
+  if (warView === "overseas") return "No enemy members overseas.";
+  if (warView === "flights") return "No enemy members currently flying.";
+  return "No hospital or attackable enemy members loaded.";
 }
 
 function getTargetSortTime(member) {
@@ -2836,7 +2839,7 @@ function init() {
   updateCountdowns();
   setTargetPreset(targetPreset);
   setWarSortMode(warSortMode);
-  setWarFlightMode(warFlightMode);
+  setWarView(warView);
   syncAccessState();
 
   if (!hasTornApiKey()) {
@@ -2858,7 +2861,7 @@ Object.assign(window, {
   saveKey,
   setTargetPreset,
   setWarSortMode,
-  setWarFlightMode,
+  setWarView,
   searchTargets,
   copyTargetIds,
   searchRecruiter,
