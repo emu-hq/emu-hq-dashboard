@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260522-war-tabs-2" />
+  <link rel="stylesheet" href="style.css?v=20260522-usage-tabs-1" />
 </head>
 
 <body>
@@ -122,6 +122,11 @@
             <div class="panel-title">JOB POINTS</div>
             <div class="panel-content" id="jobPointsPanel">Loading from your Torn API...</div>
           </section>
+
+          <section class="panel dashboard-panel">
+            <div class="panel-title">XANAX / REFILLS</div>
+            <div class="panel-content tool-cards" id="dashboardUsagePanel">Loading from your Torn API...</div>
+          </section>
         </div>
 
         <div id="members" class="page">
@@ -170,6 +175,7 @@
 
               <div class="sub-title">ENEMY TARGETS</div>
               <div class="target-controls war-status-tabs">
+                <button type="button" class="save-btn" data-war-view="all" onclick="setWarView('all')">ALL STATUS</button>
                 <button type="button" class="save-btn" data-war-view="okay" onclick="setWarView('okay')">HOSPITAL / OKAY</button>
                 <button type="button" class="save-btn" data-war-view="overseas" onclick="setWarView('overseas')">OVERSEAS</button>
                 <button type="button" class="save-btn" data-war-view="flights" onclick="setWarView('flights')">FLIGHT ETAS</button>
@@ -458,6 +464,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260522-war-tabs-2"></script>
+  <script src="app.js?v=20260522-usage-tabs-1"></script>
 </body>
 </html>
