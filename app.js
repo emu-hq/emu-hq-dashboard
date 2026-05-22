@@ -1648,10 +1648,20 @@ async function getEmuBsData(endpoint, params) {
 }
 
 async function getTargetFeed(params) {
-  return getEmuBsData("/get-targets", {
-    key: getTornApiKey(),
-    ...params
-  });
+  try {
+    return await getEmuBsData("/get-targets", {
+      key: getTornApiKey(),
+      ...params
+    });
+  } catch (err) {
+    if (!isUnregisteredTargetFeedKey(err)) throw err;
+    return getWorkerTargetFeed(params);
+  }
+}
+
+async function getWorkerTargetFeed(params) {
+  const search = new URLSearchParams(params);
+  return getData(`${EMU_WORKER_API}/api/targets/search?${search.toString()}`);
 }
 
 function formatTrackerError(message) {
@@ -2063,11 +2073,16 @@ function parseRange(value) {
 function formatTargetFeedError(err, toolName) {
   const message = String(err?.message || err || "");
 
-  if (/sign up at .*\.com|invalid api key|key is not registered/i.test(message)) {
-    return `${toolName} needs the player's Torn API key registered with the target feed first.`;
+  if (isUnregisteredTargetFeedKey(err)) {
+    return `${toolName} target feed key is not registered and the Worker fallback is unavailable.`;
   }
 
   return `${toolName} target feed unavailable. ${message || "Try again."}`;
+}
+
+function isUnregisteredTargetFeedKey(err) {
+  const message = String(err?.message || err || "");
+  return /sign up at .*\.com|invalid api key|key is not registered|torn profile fallback is still active/i.test(message);
 }
 
 function isFactionlessCandidate(target) {
