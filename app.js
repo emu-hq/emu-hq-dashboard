@@ -76,10 +76,21 @@ function showPage(pageId, button) {
 }
 
 function saveKey() {
-  apiKey = document.getElementById("apiKey").value.trim();
+  apiKey = document.getElementById("apiKey")?.value.trim() || "";
+
+  if (!apiKey) {
+    setText("status", "Paste a Full Access Torn API key first.");
+    showPage("settings");
+    syncAccessState();
+    return;
+  }
+
   localStorage.setItem("tornApiKeyOverride", apiKey);
   localStorage.removeItem("tornApiKey");
   localStorage.removeItem("bspApiKey");
+  ownBattleStats = null;
+  dataLoadInFlight = false;
+  loadSequence++;
   setText("status", "Connecting...");
   syncAccessState();
   loadAllData();
@@ -3263,6 +3274,9 @@ function init() {
 
   const keyInput = document.getElementById("apiKey");
   if (keyInput && apiKey) keyInput.value = apiKey;
+  keyInput?.addEventListener("keydown", event => {
+    if (event.key === "Enter") saveKey();
+  });
 
   updateClock();
   updateCountdowns();
@@ -3291,26 +3305,5 @@ Object.assign(window, {
   showPage,
   saveKey,
   setTargetPreset,
-  setWarSortMode,
-  setWarView,
-  setMemberView,
-  setQuickStrikeView,
-  searchTargets,
-  copyTargetIds,
-  searchRecruiter,
-  copyRecruitIds,
-  loadPlayerView,
-  loadSelfPlayerView,
-  openPlayerProfile,
-  loadFactionScout,
-  loadCurrentFactionScout,
-  loadEnemyFactionScout,
-  openFactionProfile,
-  loadActiveWars,
-  openExternalTool,
-  refreshWarTools
-});
-
-init();
-
-
+  setTargetStatsPreset,
+  changeTargetPag
