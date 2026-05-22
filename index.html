@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260522-usage-tabs-1" />
+  <link rel="stylesheet" href="style.css?v=20260522-strike-tabs-1" />
 </head>
 
 <body>
@@ -63,6 +63,17 @@
             <div class="timer-label">TIME REMAINING</div>
             <div class="timer" id="warTimer">No active war</div>
             <div class="timer-small">DAYS &nbsp;&nbsp; HRS &nbsp;&nbsp; MINS &nbsp;&nbsp; SECS</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">QUICK STRIKES</div>
+          <div class="panel-content">
+            <div class="target-controls quick-strike-tabs">
+              <button type="button" class="save-btn" data-strike-view="retals" onclick="setQuickStrikeView('retals')">RETALS</button>
+              <button type="button" class="save-btn" data-strike-view="medouts" onclick="setQuickStrikeView('medouts')">MED OUTS</button>
+            </div>
+            <div class="intel-list strike-list" id="quickStrikeTargets">Waiting for faction data.</div>
           </div>
         </section>
       </aside>
@@ -133,30 +144,43 @@
           <section class="panel">
             <div class="panel-title">FACTION MEMBERS</div>
             <div class="panel-content">
-              <div class="sub-title">ONLINE MEMBERS</div>
-              <div class="intel-list" id="onlineMembers">Loading...</div>
-
-              <div class="sub-title">FACTION HOSPITAL</div>
-              <p class="scan-line">SORTED BY RELEASE TIME</p>
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Lvl</th>
-                      <th>Status</th>
-                      <th>Reason</th>
-                      <th>ETA</th>
-                      <th>Open</th>
-                    </tr>
-                  </thead>
-                  <tbody id="hospitalTable">
-                    <tr><td colspan="6">Loading...</td></tr>
-                  </tbody>
-                </table>
+              <div class="target-controls member-status-tabs">
+                <button type="button" class="save-btn" data-member-view="status" onclick="setMemberView('status')">STATUS</button>
+                <button type="button" class="save-btn" data-member-view="inactive" onclick="setMemberView('inactive')">INACTIVE 1D+</button>
               </div>
-              <div class="sub-title">FLIGHT TRACKER</div>
-              <div class="intel-list" id="factionFlights">Loading...</div>
+
+              <div data-member-panel="status">
+                <div class="sub-title">ONLINE MEMBERS</div>
+                <div class="intel-list" id="onlineMembers">Loading...</div>
+
+                <div class="sub-title">FACTION HOSPITAL</div>
+                <p class="scan-line">SORTED BY RELEASE TIME</p>
+                <div class="data-table-wrap">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Lvl</th>
+                        <th>Status</th>
+                        <th>Reason</th>
+                        <th>ETA</th>
+                        <th>Open</th>
+                      </tr>
+                    </thead>
+                    <tbody id="hospitalTable">
+                      <tr><td colspan="6">Loading...</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="sub-title">FLIGHT TRACKER</div>
+                <div class="intel-list" id="factionFlights">Loading...</div>
+              </div>
+
+              <div data-member-panel="inactive">
+                <div class="sub-title">INACTIVE MEMBERS</div>
+                <p class="scan-line">LAST ACTION 1 DAY OR OLDER</p>
+                <div class="intel-list" id="inactiveMembers">Loading...</div>
+              </div>
             </div>
           </section>
         </div>
@@ -464,6 +488,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260522-usage-tabs-1"></script>
+  <script src="app.js?v=20260522-strike-tabs-1"></script>
 </body>
 </html>
