@@ -1413,7 +1413,8 @@ async function fetchBSPUserStatus() {
 
 async function fetchBSPJson(url) {
   const response = await fetch(url, { cache: "no-store" });
-  const data = await response.json();
+  const raw = await response.json();
+  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
   if (!response.ok) {
     throw new Error(data?.error || data?.message || `Private predictor HTTP ${response.status}`);
   }
