@@ -278,6 +278,16 @@ select{
   background:#000;
 }
 
+.key-access-note{
+  border:1px solid #ffd466;
+  background:rgba(126,85,0,0.18);
+  color:#ffd466;
+  margin-bottom:14px;
+  padding:12px 14px;
+  text-align:center;
+  text-shadow:0 0 6px rgba(255,212,102,0.72);
+}
+
 .save-btn{
   padding:12px 18px;
   background:#001800;
