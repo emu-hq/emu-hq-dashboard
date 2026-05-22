@@ -1647,9 +1647,11 @@ async function getEmuBsData(endpoint, params) {
   return data;
 }
 
-async function getWorkerTargetFeed(params) {
-  const search = new URLSearchParams(params);
-  return getData(`${EMU_WORKER_API}/api/targets/search?${search.toString()}`);
+async function getTargetFeed(params) {
+  return getEmuBsData("/get-targets", {
+    key: getTornApiKey(),
+    ...params
+  });
 }
 
 function formatTrackerError(message) {
@@ -1863,7 +1865,7 @@ async function searchFilteredTargets() {
   try {
     if (targetPreset === "respect" || targetPreset === "level") {
       params.preset = targetPreset;
-      return await getWorkerTargetFeed(params);
+      return await getTargetFeed(params);
     }
 
     params.minlevel = clampNumber(inputValue("targetMinLevel", 1), 1, 100);
@@ -1873,9 +1875,9 @@ async function searchFilteredTargets() {
     params.inactiveonly = document.getElementById("targetInactive")?.value || "1";
     params.factionless = document.getElementById("targetFactionless")?.value || "0";
 
-    return await getWorkerTargetFeed(params);
+    return await getTargetFeed(params);
   } catch (err) {
-    throw new Error("Target feed unavailable. Random target search is not loaded.");
+    throw new Error(formatTargetFeedError(err, "Target Finder"));
   }
 }
 
@@ -2018,9 +2020,9 @@ async function loadRecruiterCandidates() {
   const limit = clampNumber(inputValue("recruitLimit", 20), 1, 50);
   const minLevel = clampNumber(inputValue("recruitMinLevel", 1), 1, 100);
   const maxLevel = clampNumber(inputValue("recruitMaxLevel", 100), 1, 100);
-  const [minActive, maxActive] = parseRange(document.getElementById("recruitActivity")?.value || "0-900");
+  const [minActive, maxActive] = parseRange(document.getElementById("recruitActivity")?.value || "0-86400");
   const params = {
-    limit: Math.min(50, limit * 3),
+    limit: 50,
     minlevel: minLevel,
     maxlevel: maxLevel,
     factionless: "1",
@@ -2030,29 +2032,42 @@ async function loadRecruiterCandidates() {
   let targets = [];
 
   try {
-    const data = await getWorkerTargetFeed(params);
+    const data = await getTargetFeed(params);
     targets = normalizeTargetResults(data);
   } catch (err) {
-    throw new Error("Recruiter feed unavailable. It needs a working factionless target source.");
+    throw new Error(formatTargetFeedError(err, "Faction Recruiter"));
   }
 
   const filtered = targets
     .filter(target => Number(target.level || 0) >= minLevel && Number(target.level || 0) <= maxLevel)
     .filter(isFactionlessCandidate)
-    .filter(target => {
-      const age = getLastActionAgeSeconds(target);
-      return age === null || (age >= minActive && age <= maxActive);
-    })
-    .slice(0, limit);
+    .slice(0, 50);
 
   const factionless = await verifyFactionlessTargets(filtered);
-  const enriched = await enrichTargetsWithBSP(factionless);
+  const active = factionless
+    .filter(target => {
+      const age = getLastActionAgeSeconds(target);
+      return age !== null && age >= minActive && age <= maxActive;
+    })
+    .sort((a, b) => (getLastActionAgeSeconds(a) ?? Infinity) - (getLastActionAgeSeconds(b) ?? Infinity))
+    .slice(0, limit);
+  const enriched = await enrichTargetsWithBSP(active);
   return enriched;
 }
 
 function parseRange(value) {
   const [min, max] = String(value || "").split("-").map(part => Number(part));
   return [Number.isFinite(min) ? min : 0, Number.isFinite(max) ? max : 900];
+}
+
+function formatTargetFeedError(err, toolName) {
+  const message = String(err?.message || err || "");
+
+  if (/sign up at .*\.com|invalid api key|key is not registered/i.test(message)) {
+    return `${toolName} needs the player's Torn API key registered with the target feed first.`;
+  }
+
+  return `${toolName} target feed unavailable. ${message || "Try again."}`;
 }
 
 function isFactionlessCandidate(target) {
@@ -2076,7 +2091,21 @@ async function verifyFactionlessTargets(targets) {
       try {
         const profile = normalizePlayerProfile(await loadPublicPlayerProfile(id), id);
         if (isFactionlessCandidate(profile)) {
-          verified.push({ ...target, faction: profile.faction, faction_id: profile.factionId });
+          verified.push({
+            ...target,
+            name: profile.name || target.name,
+            level: profile.level ?? target.level,
+            status: profile.status || target.status,
+            faction: profile.faction,
+            faction_id: profile.factionId,
+            last_action: profile.lastActionTimestamp
+              ? {
+                  timestamp: profile.lastActionTimestamp,
+                  relative: profile.lastAction,
+                  status: profile.lastActionStatus
+                }
+              : target.last_action
+          });
         }
       } catch (err) {
         // A factionless search should not show players we could not verify.
@@ -2126,7 +2155,7 @@ function renderRecruiterResults(recruits) {
     "recruiterResults",
     recruits.length
       ? recruits.map(recruitRow).join("")
-      : emptyTableRow("No factionless players found in that activity range.", 6)
+      : emptyTableRow("No verified factionless players in that activity range. Try 0-24 hours or Open Torn Search for live subscriber search.", 6)
   );
 }
 
@@ -2362,6 +2391,8 @@ function normalizePlayerProfile(data, playerId) {
     faction: faction.name || profile.faction_name || faction.faction_name || "N/A",
     factionId: faction.id || faction.faction_id || profile.faction_id || null,
     lastAction: lastAction.relative || lastAction.status || profile.last_action || "-",
+    lastActionTimestamp: Number(lastAction.timestamp || profile.last_action_timestamp || 0),
+    lastActionStatus: lastAction.status || "",
     status: status.description || status.state || (typeof profile.status === "string" ? profile.status : "-"),
     statusState: status.state || "",
     statusUntil: Number(status.until || 0),
