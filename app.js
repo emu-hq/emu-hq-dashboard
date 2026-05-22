@@ -1171,7 +1171,10 @@ async function loadEnemyFaction(enemyId) {
 
 async function loadTrackedFactionMembers(factionId) {
   try {
-    return await getData(`${EMU_WORKER_API}/api/travel/faction/${encodeURIComponent(factionId)}`);
+    const params = new URLSearchParams();
+    if (activeFactionId) params.set("viewerFactionId", activeFactionId);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return await getData(`${EMU_WORKER_API}/api/travel/faction/${encodeURIComponent(factionId)}${query}`);
   } catch (err) {
     return loadFactionMembers(factionId);
   }
@@ -1265,13 +1268,22 @@ function sortEnemyTargets(members) {
 
 function filterWarViewMembers(members) {
   if (warView === "all") return members;
-  if (warView === "overseas") return members.filter(member => getTravelInfo(member)?.direction === "abroad");
+  if (warView === "overseas") return members.filter(member => {
+    if (isHospital(member)) return isOverseasHospital(member);
+    return getTravelInfo(member)?.direction === "abroad";
+  });
   if (warView === "flights") return members.filter(member => {
     const travel = getTravelInfo(member);
     return travel && travel.direction !== "abroad";
   });
 
   return members.filter(member => isHospital(member) || getWarTargetGroup(member) === "okay");
+}
+
+function isOverseasHospital(member) {
+  const status = getMemberStatus(member);
+  const text = `${status.state} ${status.description} ${status.details}`.toLowerCase();
+  return Object.keys(TRAVEL_TIMES).some(location => text.includes(location));
 }
 
 function getFlightSortTime(travel) {
@@ -1450,19 +1462,22 @@ function renderAttacks(data, factionId) {
 }
 
 async function loadRetalTargets(attacks, factionId) {
+  const now = Math.floor(Date.now() / 1000);
   const byAttacker = new Map();
 
   attacks.forEach(attack => {
     const incoming = String(attack.defender.factionId) === String(factionId);
     const outsideAttacker = String(attack.attacker.factionId) !== String(factionId);
     const id = getPlayerId(attack.attacker);
-    if (!incoming || !outsideAttacker || !/^\d+$/.test(String(id))) return;
+    const retalUntil = Number(attack.timestamp || 0) + 300;
+    if (!incoming || !outsideAttacker || !/^\d+$/.test(String(id)) || !attack.timestamp || retalUntil <= now) return;
 
     const previous = byAttacker.get(String(id));
     if (!previous || Number(attack.timestamp || 0) > Number(previous.lastAttack || 0)) {
       byAttacker.set(String(id), {
         ...attack.attacker,
         lastAttack: attack.timestamp,
+        retalUntil,
         victim: attack.defender
       });
     }
@@ -1521,8 +1536,10 @@ function renderQuickStrikeTargets() {
 
 function retalStrikeRow(member) {
   const victim = member.victim?.name ? `Hit ${member.victim.name}` : "Incoming faction attack";
-  const time = member.lastAttack ? formatDateTime(member.lastAttack) : "Recent";
-  return quickStrikeRow(member, `${victim} - ${time}`);
+  const timer = member.retalUntil
+    ? `<small>Retal window: <span class="countdown warning" data-countdown-until="${member.retalUntil}">${formatCountdown(member.retalUntil)}</span></small>`
+    : "";
+  return quickStrikeRow(member, `${victim} - ${member.lastAttack ? formatDateTime(member.lastAttack) : "Recent"}`, timer);
 }
 
 function medOutStrikeRow(member) {
@@ -1530,13 +1547,14 @@ function medOutStrikeRow(member) {
   return quickStrikeRow(member, `Online after hospital - ${formatElapsed(Date.now() - Number(tracked?.hospitalExitAt || Date.now()))} ago`);
 }
 
-function quickStrikeRow(member, detail) {
+function quickStrikeRow(member, detail, extraHtml = "") {
   const estimate = formatMemberEstimate(member);
   return `
     <div class="intel-row strike-row">
       <span>
         ${tableMemberLink(member)}
         <small>${escapeHtml(detail)}</small>
+        ${extraHtml}
         <small>BSP: ${escapeHtml(estimate || "-")}</small>
       </span>
       ${attackActionLink(member)}
@@ -1853,34 +1871,8 @@ async function searchFilteredTargets() {
 
     return await getEmuBsData("/get-targets", params);
   } catch (err) {
-    const fallback = buildLocalTargetFallback(limit);
-    if (fallback.length) {
-      setText("targetStatus", `Showing ${fallback.length} locally loaded target${fallback.length === 1 ? "" : "s"}.`);
-      return fallback;
-    }
-    throw err;
+    throw new Error("Target feed unavailable. Random target search is not loaded.");
   }
-}
-
-function buildLocalTargetFallback(limit) {
-  const minLevel = targetPreset === "level" ? 80 : clampNumber(inputValue("targetMinLevel", 1), 1, 100);
-  const maxLevel = clampNumber(inputValue("targetMaxLevel", 100), 1, 100);
-  const pool = [...latestEnemyMembers, ...latestFactionMembers]
-    .filter(member => !String(getPlayerId(member)).startsWith("stealth"))
-    .filter(member => Number(member.level || 0) >= minLevel && Number(member.level || 0) <= maxLevel)
-    .filter(member => !isHospital(member))
-    .map(member => ({
-      player_id: getPlayerId(member),
-      name: member.name,
-      level: member.level,
-      last_action_relative: getLastAction(member).relative || getLastAction(member).status || "-",
-      bs_estimate: getMemberEstimateValue(member),
-      bs_estimate_human: formatMemberEstimate(member)
-    }));
-
-  return pool
-    .sort((a, b) => Number(b.bs_estimate || 0) - Number(a.bs_estimate || 0) || Number(b.level || 0) - Number(a.level || 0))
-    .slice(0, limit);
 }
 
 async function searchManualTargets() {
@@ -2040,7 +2032,7 @@ async function loadRecruiterCandidates() {
     const data = await getEmuBsData("/get-targets", params);
     targets = normalizeTargetResults(data);
   } catch (err) {
-    throw new Error("Recruiter feed unavailable. Try again.");
+    throw new Error("Recruiter feed unavailable. It needs a working factionless target source.");
   }
 
   const filtered = targets
