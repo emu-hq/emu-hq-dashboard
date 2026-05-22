@@ -217,6 +217,19 @@ p{
 
 .stat strong{
   font-size:34px;
+  overflow-wrap:anywhere;
+}
+
+.stat small{
+  display:block;
+  margin-top:6px;
+  opacity:.72;
+}
+
+.jobpoints-grid{
+  display:grid;
+  gap:14px;
+  grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));
 }
 
 .timer-box{
