@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260522-ff-slider-1" />
+  <link rel="stylesheet" href="style.css?v=20260522-target-modes-1" />
 </head>
 
 <body>
@@ -257,16 +257,19 @@
               <div class="tool-grid" id="targetFilterGrid">
                 <label>MIN LEVEL<input id="targetMinLevel" type="number" min="1" max="100" value="1" /></label>
                 <label>MAX LEVEL<input id="targetMaxLevel" type="number" min="1" max="100" value="100" /></label>
+                <label class="filter-toggle"><input id="targetUseFF" type="checkbox" onchange="syncTargetSearchModes()" /> USE FF DIFFICULTY</label>
+                <label class="filter-toggle"><input id="targetUseStats" type="checkbox" onchange="syncTargetSearchModes()" /> USE CUSTOM BATTLE STATS</label>
                 <input id="targetMinFF" type="hidden" value="1" />
-                <label class="range-tool">TARGET DIFFICULTY
+                <label class="range-tool" id="targetFFControls">TARGET DIFFICULTY
                   <span class="range-line">
-                    <input id="targetMaxFF" type="range" min="1.01" max="30" step="0.05" value="3" oninput="updateTargetFFLabel()" />
+                    <input id="targetMaxFF" type="range" min="1.01" max="5" step="0.05" value="3" oninput="updateTargetFFLabel()" />
+                    <input id="targetMaxFFNumber" class="ff-number" type="number" min="1.01" max="5" step="0.05" value="3" oninput="setTargetFFFromNumber()" />
                     <strong id="targetFFValue">FF 3</strong>
                   </span>
                   <small>Higher FF = harder target.</small>
                 </label>
                 <label>PER PAGE<input id="targetLimit" type="number" min="1" max="50" value="20" /></label>
-                <label>STATS CEILING
+                <label id="targetStatsControls">STATS CEILING
                   <select id="targetStatsPreset" onchange="setTargetStatsPreset(this.value)">
                     <option value="any">ANY</option>
                     <option value="100k">UNDER 100K</option>
@@ -277,8 +280,8 @@
                     <option value="custom">CUSTOM</option>
                   </select>
                 </label>
-                <label>MIN STATS<input id="targetMinStats" type="text" placeholder="100k, 1m, 1b" /></label>
-                <label>MAX STATS<input id="targetMaxStats" type="text" placeholder="100k, 1m, 1b" /></label>
+                <label data-target-stats-control>MIN STATS<input id="targetMinStats" type="text" placeholder="100k, 1m, 1b" /></label>
+                <label data-target-stats-control>MAX STATS<input id="targetMaxStats" type="text" placeholder="100k, 1m, 1b" /></label>
                 <label>INACTIVE
                   <select id="targetInactive">
                     <option value="1">200+ DAYS</option>
@@ -512,6 +515,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260522-ff-slider-1"></script>
+  <script src="app.js?v=20260522-target-modes-1"></script>
 </body>
 </html>
