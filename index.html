@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260522-target-fallback-1" />
+  <link rel="stylesheet" href="style.css?v=20260522-api-startup-1" />
 </head>
 
 <body>
@@ -259,7 +259,20 @@
                 <label>MAX LEVEL<input id="targetMaxLevel" type="number" min="1" max="100" value="100" /></label>
                 <label>MIN FF<input id="targetMinFF" type="number" min="1" step="0.1" value="1" /></label>
                 <label>MAX FF<input id="targetMaxFF" type="number" min="1" step="0.1" value="3" /></label>
-                <label>LIMIT<input id="targetLimit" type="number" min="1" max="50" value="20" /></label>
+                <label>PER PAGE<input id="targetLimit" type="number" min="1" max="50" value="20" /></label>
+                <label>STATS CEILING
+                  <select id="targetStatsPreset" onchange="setTargetStatsPreset(this.value)">
+                    <option value="any">ANY</option>
+                    <option value="100k">UNDER 100K</option>
+                    <option value="500k">UNDER 500K</option>
+                    <option value="1m">UNDER 1M</option>
+                    <option value="10m">UNDER 10M</option>
+                    <option value="20m">UNDER 20M</option>
+                    <option value="custom">CUSTOM</option>
+                  </select>
+                </label>
+                <label>MIN STATS<input id="targetMinStats" type="text" placeholder="100k, 1m, 1b" /></label>
+                <label>MAX STATS<input id="targetMaxStats" type="text" placeholder="100k, 1m, 1b" /></label>
                 <label>INACTIVE
                   <select id="targetInactive">
                     <option value="1">200+ DAYS</option>
@@ -280,7 +293,10 @@
 
               <div class="tool-actions">
                 <button type="button" class="save-btn" data-tool-action="search-targets" onclick="searchTargets()">SEARCH TARGETS</button>
+                <button type="button" class="save-btn" id="targetPrevPage" onclick="changeTargetPage(-1)" disabled>PREV PAGE</button>
+                <button type="button" class="save-btn" onclick="changeTargetPage(1)">NEXT TARGETS</button>
                 <button type="button" class="save-btn" data-tool-action="copy-target-ids" onclick="copyTargetIds()">COPY IDS</button>
+                <span id="targetPageStatus" class="muted">PAGE 1 / 1</span>
                 <span id="targetStatus" class="muted">Ready.</span>
               </div>
 
@@ -490,6 +506,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260522-target-fallback-1"></script>
+  <script src="app.js?v=20260522-api-startup-1"></script>
 </body>
 </html>
