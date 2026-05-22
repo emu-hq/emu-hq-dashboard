@@ -80,7 +80,7 @@
 
       <section class="center-column">
         <div id="dashboard" class="page">
-          <div class="center-title">EMU HQ TERMINAL v1.6</div>
+        <div class="center-title">EMU HQ TERMINAL v1.6</div>
 
           <section class="api-window">
             <div class="api-header">
@@ -172,7 +172,6 @@
                     </tbody>
                   </table>
                 </div>
-
                 <div class="sub-title">FLIGHT TRACKER</div>
                 <div class="intel-list" id="factionFlights">Loading...</div>
               </div>
@@ -205,7 +204,6 @@
                 <button type="button" class="save-btn" data-war-view="overseas" onclick="setWarView('overseas')">OVERSEAS</button>
                 <button type="button" class="save-btn" data-war-view="flights" onclick="setWarView('flights')">FLIGHT ETAS</button>
               </div>
-
               <div class="data-table-wrap">
                 <table class="data-table">
                   <thead>
@@ -249,7 +247,6 @@
             <div class="panel-title">TARGET FINDER</div>
             <div class="panel-content">
               <p class="scan-line">ESTIMATES VIA EMU BS TRACKER</p>
-
               <div class="target-controls">
                 <button type="button" class="save-btn" data-target-preset="level" onclick="setTargetPreset('level')">LEVELLING</button>
                 <button type="button" class="save-btn" data-target-preset="respect" onclick="setTargetPreset('respect')">RESPECT</button>
@@ -260,23 +257,11 @@
               <div class="tool-grid" id="targetFilterGrid">
                 <label>MIN LEVEL<input id="targetMinLevel" type="number" min="1" max="100" value="1" /></label>
                 <label>MAX LEVEL<input id="targetMaxLevel" type="number" min="1" max="100" value="100" /></label>
-
-                <label class="filter-toggle"><input id="targetUseFF" type="checkbox" onchange="syncTargetSearchModes()" /> USE FF DIFFICULTY</label>
-                <label class="filter-toggle"><input id="targetUseStats" type="checkbox" onchange="syncTargetSearchModes()" /> USE CUSTOM BATTLE STATS</label>
-
+                <label class="filter-toggle"><input id="targetUseFF" name="targetSearchMode" type="radio" onchange="syncTargetSearchModes()" /> USE FF</label>
+                <label class="filter-toggle"><input id="targetUseStats" name="targetSearchMode" type="radio" onchange="syncTargetSearchModes()" checked /> USE BATTLE STATS</label>
                 <input id="targetMinFF" type="hidden" value="1" />
-
-                <label class="range-tool" id="targetFFControls">TARGET DIFFICULTY
-                  <span class="range-line">
-                    <input id="targetMaxFF" type="range" min="1.01" max="5" step="0.05" value="3" oninput="enableTargetFFMode(); updateTargetFFLabel()" />
-                    <input id="targetMaxFFNumber" class="ff-number" type="number" min="1.01" max="5" step="0.05" value="3" oninput="setTargetFFFromNumber()" />
-                    <strong id="targetFFValue">FF 3</strong>
-                  </span>
-                  <small>Higher FF = harder target.</small>
-                </label>
-
+                <input id="targetMaxFF" type="hidden" value="3" />
                 <label>PER PAGE<input id="targetLimit" type="number" min="1" max="50" value="20" /></label>
-
                 <label id="targetStatsControls">STATS CEILING
                   <select id="targetStatsPreset" onchange="setTargetStatsPreset(this.value)">
                     <option value="any">ANY</option>
@@ -288,17 +273,14 @@
                     <option value="custom">CUSTOM</option>
                   </select>
                 </label>
-
                 <label data-target-stats-control>MIN STATS<input id="targetMinStats" type="text" placeholder="100k, 1m, 1b" /></label>
                 <label data-target-stats-control>MAX STATS<input id="targetMaxStats" type="text" placeholder="100k, 1m, 1b" /></label>
-
                 <label>INACTIVE
                   <select id="targetInactive">
                     <option value="1">200+ DAYS</option>
                     <option value="0">ACTIVE / ANY</option>
                   </select>
                 </label>
-
                 <label>FACTIONLESS
                   <select id="targetFactionless">
                     <option value="0">FALSE</option>
@@ -346,12 +328,10 @@
             <div class="panel-title">FACTION RECRUITER</div>
             <div class="panel-content">
               <p class="scan-line">FACTIONLESS PLAYER SEARCH</p>
-
               <div class="tool-grid">
                 <label>MIN LEVEL<input id="recruitMinLevel" type="number" min="1" max="100" value="1" /></label>
                 <label>MAX LEVEL<input id="recruitMaxLevel" type="number" min="1" max="100" value="100" /></label>
                 <label>LIMIT<input id="recruitLimit" type="number" min="1" max="50" value="20" /></label>
-
                 <label>LAST ACTIVE
                   <select id="recruitActivity">
                     <option value="0-86400">0-24 hours</option>
@@ -362,14 +342,12 @@
                   </select>
                 </label>
               </div>
-
               <div class="tool-actions">
                 <button type="button" class="save-btn" onclick="searchRecruiter()">SEARCH RECRUITS</button>
                 <button type="button" class="save-btn" onclick="openExternalTool('https://www.torn.com/page.php?sid=UserList')">OPEN TORN SEARCH</button>
                 <button type="button" class="save-btn" onclick="copyRecruitIds()">COPY IDS</button>
                 <span id="recruiterStatus" class="muted">Ready.</span>
               </div>
-
               <div class="data-table-wrap">
                 <table class="data-table">
                   <thead>
@@ -396,18 +374,15 @@
             <div class="panel-title">PLAYER VIEW</div>
             <div class="panel-content">
               <p class="scan-line">PROFILE + ESTIMATES VIA EMU BS TRACKER</p>
-
               <div class="tool-grid tool-grid-compact">
                 <label>PLAYER ID OR URL<input id="playerLookupId" type="text" placeholder="1844049 or torn.com/profiles.php?XID=1844049" /></label>
               </div>
-
               <div class="tool-actions">
                 <button type="button" class="save-btn" data-tool-action="load-player" onclick="loadPlayerView()">LOAD PLAYER</button>
                 <button type="button" class="save-btn" data-tool-action="load-self-player" onclick="loadSelfPlayerView()">USE MY ID</button>
                 <button type="button" class="save-btn" onclick="openPlayerProfile()">OPEN TORN</button>
                 <span id="playerViewStatus" class="muted">Ready.</span>
               </div>
-
               <div id="playerDashboardCard"></div>
               <div id="playerViewSummary" class="tool-cards"></div>
               <div id="playerUsageSummary" class="tool-cards"></div>
@@ -418,18 +393,8 @@
               <div class="sub-title">FLIGHT TRACKER</div>
               <div class="data-table-wrap">
                 <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Trip</th>
-                      <th>Method</th>
-                      <th>Earliest</th>
-                      <th>Latest</th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody id="playerFlightsTable">
-                    <tr><td colspan="5">No player loaded.</td></tr>
-                  </tbody>
+                  <thead><tr><th>Trip</th><th>Method</th><th>Earliest</th><th>Latest</th><th>Notes</th></tr></thead>
+                  <tbody id="playerFlightsTable"><tr><td colspan="5">No player loaded.</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -441,12 +406,10 @@
             <div class="panel-title">FACTION SCOUT</div>
             <div class="panel-content">
               <p class="scan-line">TORN ROSTER + ESTIMATES VIA EMU BS TRACKER</p>
-
               <div class="tool-grid tool-grid-compact">
                 <label>FACTION ID<input id="scoutFactionId" type="text" placeholder="34623" /></label>
                 <label>MEMBER LIMIT<input id="scoutMemberLimit" type="number" min="1" max="100" value="100" /></label>
               </div>
-
               <div class="tool-actions">
                 <button class="save-btn" onclick="loadFactionScout()">LOAD FACTION</button>
                 <button class="save-btn" onclick="loadCurrentFactionScout()">CURRENT FACTION</button>
@@ -454,7 +417,6 @@
                 <button class="save-btn" onclick="openFactionProfile()">OPEN TORN</button>
                 <span id="factionScoutStatus" class="muted">Ready.</span>
               </div>
-
               <div id="factionScoutSummary" class="tool-cards"></div>
 
               <div class="sub-title">ACTIVITY SNAPSHOT</div>
@@ -463,20 +425,8 @@
               <div class="sub-title">MEMBERS</div>
               <div class="data-table-wrap">
                 <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Player</th>
-                      <th>Lvl</th>
-                      <th>Status</th>
-                      <th>Fair Fight</th>
-                      <th>Stats</th>
-                      <th>Last Action</th>
-                      <th>Attack</th>
-                    </tr>
-                  </thead>
-                  <tbody id="factionScoutMembers">
-                    <tr><td colspan="7">No faction loaded.</td></tr>
-                  </tbody>
+                  <thead><tr><th>Player</th><th>Lvl</th><th>Status</th><th>Fair Fight</th><th>Stats</th><th>Last Action</th><th>Attack</th></tr></thead>
+                  <tbody id="factionScoutMembers"><tr><td colspan="7">No faction loaded.</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -488,64 +438,29 @@
             <div class="panel-title">ACTIVE RANKED WARS</div>
             <div class="panel-content">
               <p class="scan-line">LIVE WARFARE, TERRITORY PRESSURE, AND CHAINS</p>
-
               <div class="tool-actions">
                 <button class="save-btn" onclick="loadActiveWars()">LOAD WARFARE</button>
                 <span id="activeWarsStatus" class="muted">Ready.</span>
               </div>
-
               <div class="sub-title">RANKED WARS</div>
               <div class="data-table-wrap">
                 <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Faction A</th>
-                      <th>Score</th>
-                      <th>Faction B</th>
-                      <th>Score</th>
-                      <th>Status</th>
-                      <th>Started</th>
-                    </tr>
-                  </thead>
-                  <tbody id="activeWarsTable">
-                    <tr><td colspan="6">No wars loaded.</td></tr>
-                  </tbody>
+                  <thead><tr><th>Faction A</th><th>Score</th><th>Faction B</th><th>Score</th><th>Status</th><th>Started</th></tr></thead>
+                  <tbody id="activeWarsTable"><tr><td colspan="6">No wars loaded.</td></tr></tbody>
                 </table>
               </div>
-
               <div class="sub-title">TERRITORY ASSAULTS</div>
               <div class="data-table-wrap">
                 <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Territory</th>
-                      <th>Faction A</th>
-                      <th>Faction B</th>
-                      <th>Status</th>
-                      <th>Started</th>
-                    </tr>
-                  </thead>
-                  <tbody id="activeTerritoryTable">
-                    <tr><td colspan="5">No territory assaults loaded.</td></tr>
-                  </tbody>
+                  <thead><tr><th>Territory</th><th>Faction A</th><th>Faction B</th><th>Status</th><th>Started</th></tr></thead>
+                  <tbody id="activeTerritoryTable"><tr><td colspan="5">No territory assaults loaded.</td></tr></tbody>
                 </table>
               </div>
-
               <div class="sub-title">LIVE CHAINS</div>
               <div class="data-table-wrap">
                 <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Faction</th>
-                      <th>Chain</th>
-                      <th>Timeout</th>
-                      <th>Started</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody id="liveChainsTable">
-                    <tr><td colspan="5">No live chains loaded.</td></tr>
-                  </tbody>
+                  <thead><tr><th>Faction</th><th>Chain</th><th>Timeout</th><th>Started</th><th>Status</th></tr></thead>
+                  <tbody id="liveChainsTable"><tr><td colspan="5">No live chains loaded.</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -556,11 +471,11 @@
           <section class="panel">
             <div class="panel-title">SETTINGS</div>
             <div class="panel-content">
-              <div class="key-access-note">FULL ACCESS KEY NEEDED</div>
-              <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
-              <button onclick="saveKey()" class="save-btn">SAVE SETTINGS</button>
-              <div id="status">Enter Torn API key to unlock terminal.</div>
-            </div>
+            <div class="key-access-note">FULL ACCESS KEY NEEDED</div>
+            <input id="apiKey" type="password" placeholder="Enter Torn API Key" />
+            <button onclick="saveKey()" class="save-btn">SAVE SETTINGS</button>
+            <div id="status">Enter Torn API key to unlock terminal.</div>
+          </div>
           </section>
         </div>
       </section>
