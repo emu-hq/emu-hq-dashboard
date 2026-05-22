@@ -39,7 +39,7 @@ let latestRecruiterResults = [];
 let latestFactionChain = null;
 let targetPreset = "custom";
 let warSortMode = localStorage.getItem("warSortMode") || "status";
-let warView = localStorage.getItem("warView") || "okay";
+let warView = localStorage.getItem("warView") || "all";
 let ownBattleStats = null;
 let memberStatusCache = loadMemberStatusCache();
 
@@ -171,10 +171,11 @@ async function loadAllData() {
     getData(tornUrl(2, "/faction", { selections: "rankedwars", key: getTornApiKey() })),
     loadFactionAttacksData(),
     loadUserHonorsData(),
-    loadUserJobPointsData()
+    loadUserJobPointsData(),
+    loadOwnUsageInsights()
   ];
 
-  const [userResult, factionResult, warsResult, attacksResult, honorsResult, jobPointsResult] =
+  const [userResult, factionResult, warsResult, attacksResult, honorsResult, jobPointsResult, usageResult] =
     await Promise.allSettled(requests);
 
   if (sequence !== loadSequence) return;
@@ -195,6 +196,12 @@ async function loadAllData() {
     renderJobPoints(jobPointsResult.value);
   } else {
     setHtml("jobPointsPanel", emptyMessage("Job points unavailable for this key."));
+  }
+
+  if (usageResult.status === "fulfilled") {
+    renderDashboardUsage(usageResult.value);
+  } else {
+    setHtml("dashboardUsagePanel", emptyMessage("Xanax and refill averages unavailable for this key."));
   }
 
   if (factionResult.status === "fulfilled") {
@@ -285,6 +292,32 @@ function loadUserJobPointsData() {
   return getData(tornUrl(2, "/user/jobpoints", { key: getTornApiKey() }));
 }
 
+async function loadOwnUsageInsights() {
+  const now = Math.floor(Date.now() / 1000);
+  const monthAgo = now - 30 * 86400;
+  const yearAgo = now - 365 * 86400;
+  const [current, month, year] = await Promise.all([
+    getOwnHistoricStats(),
+    getOwnHistoricStats(monthAgo),
+    getOwnHistoricStats(yearAgo)
+  ]);
+
+  return {
+    monthXanax: statDelta(current, month, "xantaken"),
+    yearXanax: statDelta(current, year, "xantaken"),
+    monthRefills: statDelta(current, month, "refills"),
+    yearRefills: statDelta(current, year, "refills")
+  };
+}
+
+function getOwnHistoricStats(timestamp) {
+  return getData(tornUrl(2, "/user/personalstats", {
+    stat: "xantaken,refills",
+    ...(timestamp ? { timestamp } : {}),
+    key: getTornApiKey()
+  })).then(normalizeHistoricStats);
+}
+
 async function loadOwnBattleStats() {
   if (!hasTornApiKey() || ownBattleStats) return ownBattleStats;
 
@@ -367,6 +400,7 @@ function renderNoKeyState() {
   setHtml("activeTerritoryTable", emptyTableRow("Enter API key in Settings.", 5));
   setHtml("liveChainsTable", emptyTableRow("Enter API key in Settings.", 5));
   setHtml("jobPointsPanel", emptyMessage("Enter API key in Settings."));
+  setHtml("dashboardUsagePanel", emptyMessage("Enter API key in Settings."));
 }
 
 function loadUser(user, honorsData) {
@@ -525,6 +559,15 @@ function jobPointsTable(title, rows) {
       </table>
     </div>
   `;
+}
+
+function renderDashboardUsage(usage) {
+  renderToolCards("dashboardUsagePanel", [
+    ["XANAX 30D", formatUsageRate(usage.monthXanax, 30)],
+    ["XANAX 1Y", formatUsageRate(usage.yearXanax, 365)],
+    ["REFILLS 30D", formatUsageRate(usage.monthRefills, 30)],
+    ["REFILLS 1Y", formatUsageRate(usage.yearRefills, 365)]
+  ]);
 }
 
 function formatRankPosition(faction) {
@@ -1155,6 +1198,7 @@ function sortEnemyTargets(members) {
 }
 
 function filterWarViewMembers(members) {
+  if (warView === "all") return members;
   if (warView === "overseas") return members.filter(member => getTravelInfo(member)?.direction === "abroad");
   if (warView === "flights") return members.filter(member => {
     const travel = getTravelInfo(member);
@@ -1178,7 +1222,7 @@ function setWarSortMode(mode) {
 }
 
 function setWarView(mode) {
-  warView = ["okay", "overseas", "flights"].includes(mode) ? mode : "okay";
+  warView = ["all", "okay", "overseas", "flights"].includes(mode) ? mode : "all";
   localStorage.setItem("warView", warView);
 
   document.querySelectorAll("[data-war-view]").forEach(button => {
@@ -1191,6 +1235,7 @@ function setWarView(mode) {
 function getWarViewEmptyMessage() {
   if (warView === "overseas") return "No enemy members overseas.";
   if (warView === "flights") return "No enemy members currently flying.";
+  if (warView === "all") return "No enemy members loaded.";
   return "No hospital or attackable enemy members loaded.";
 }
 
@@ -2088,8 +2133,35 @@ function getPlayerHistoricStats(playerId, timestamp) {
 }
 
 function normalizeHistoricStats(data) {
-  const rows = Array.isArray(data?.personalstats) ? data.personalstats : [];
-  return Object.fromEntries(rows.map(row => [row.name, Number(row.value || 0)]));
+  const stats = data?.personalstats;
+
+  if (Array.isArray(stats)) {
+    return Object.fromEntries(stats.map(row => [row.name, Number(row.value || 0)]));
+  }
+
+  if (!stats || typeof stats !== "object") return {};
+
+  const flattened = {};
+  collectPersonalStatValues(stats, flattened);
+  return flattened;
+}
+
+function collectPersonalStatValues(value, stats) {
+  if (!value || typeof value !== "object") return;
+
+  Object.entries(value).forEach(([key, entry]) => {
+    if (Number.isFinite(Number(entry))) {
+      stats[key] = Number(entry);
+      return;
+    }
+
+    if (entry && typeof entry === "object" && Number.isFinite(Number(entry.value))) {
+      stats[entry.name || key] = Number(entry.value);
+      return;
+    }
+
+    collectPersonalStatValues(entry, stats);
+  });
 }
 
 function statDelta(current, prior, name) {
