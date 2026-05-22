@@ -10,6 +10,7 @@ const POLL_INTERVAL_MS = 30000;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const MED_OUT_WINDOW_MS = 15 * 60 * 1000;
 const TRAVEL_TIMES = {
   "mexico": { name: "Mexico", standard: 26, airstrip: 18 },
   "cayman islands": { name: "Cayman Islands", standard: 35, airstrip: 25 },
@@ -40,8 +41,12 @@ let latestFactionChain = null;
 let targetPreset = "custom";
 let warSortMode = localStorage.getItem("warSortMode") || "status";
 let warView = localStorage.getItem("warView") || "all";
+let memberView = localStorage.getItem("memberView") || "status";
+let quickStrikeView = localStorage.getItem("quickStrikeView") || "retals";
 let ownBattleStats = null;
 let memberStatusCache = loadMemberStatusCache();
+let latestRetalTargets = [];
+let latestMedOutTargets = [];
 
 function getTornApiKey() {
   return apiKey;
@@ -223,9 +228,10 @@ async function loadAllData() {
     }
   } else {
     warnings.push(`faction: ${factionResult.reason.message}`);
-    setHtml("onlineMembers", emptyMessage("Faction members unavailable."));
-    setHtml("onlineMembersSide", emptyMessage("Faction members unavailable."));
-    setHtml("hospitalMembers", emptyMessage("Faction hospital unavailable."));
+  setHtml("onlineMembers", emptyMessage("Faction members unavailable."));
+  setHtml("onlineMembersSide", emptyMessage("Faction members unavailable."));
+  setHtml("inactiveMembers", emptyMessage("Faction members unavailable."));
+  setHtml("hospitalMembers", emptyMessage("Faction hospital unavailable."));
   }
 
   if (warsResult.status === "fulfilled") {
@@ -242,6 +248,8 @@ async function loadAllData() {
   } else {
     warnings.push(`attacks: ${attacksResult.reason.message}`);
     setHtml("recentAttacks", emptyMessage("Faction attack data unavailable for this key."));
+    latestRetalTargets = [];
+    renderQuickStrikeTargets();
   }
 
   setText(
@@ -378,6 +386,7 @@ function renderNoKeyState() {
   setText("chainAlert", "Enter API key");
   setHtml("onlineMembers", emptyMessage("Enter API key in Settings."));
   setHtml("onlineMembersSide", emptyMessage("Enter API key in Settings."));
+  setHtml("inactiveMembers", emptyMessage("Enter API key in Settings."));
   setHtml("hospitalMembers", emptyMessage("Enter API key in Settings."));
   setHtml("factionFlights", emptyMessage("Enter API key in Settings."));
   setHtml("hospitalTable", emptyTableRow("Enter API key in Settings.", 6));
@@ -385,6 +394,7 @@ function renderNoKeyState() {
   setHtml("enemyHospitalList", emptyMessage("Enter API key in Settings."));
   setHtml("warTargetsTable", emptyTableRow("Enter API key in Settings.", 6));
   setHtml("recentAttacks", emptyMessage("Enter API key in Settings."));
+  setHtml("quickStrikeTargets", emptyMessage("Enter API key in Settings."));
   setHtml("chainPanel", emptyMessage("Enter API key in Settings."));
   setHtml("targetResults", emptyTableRow("Enter API key in Settings.", 6));
   setHtml("recruiterResults", emptyTableRow("Enter API key in Settings.", 6));
@@ -517,6 +527,7 @@ function renderFactionMembers(members) {
   latestFactionMembers = members;
   setText("factionMembers", `${members.length || "-"}`);
   renderOnlineMembers(members);
+  renderInactiveMembers(members);
   renderOwnHospital(members);
   renderFactionFlights(members);
 }
@@ -649,11 +660,14 @@ function syncMemberStatusTracking(members) {
     const previous = memberStatusCache[id];
     const sameStatus = previous?.signature === signature;
     const travelling = isTravelling(member);
+    const hospital = isHospital(member);
+    const leftHospital = previous && isTrackedHospitalSignature(previous.signature) && !hospital;
 
     memberStatusCache[id] = {
       signature,
       since: sameStatus ? previous.since : now,
       travelSince: travelling ? (sameStatus ? previous.travelSince || now : now) : null,
+      hospitalExitAt: hospital ? null : leftHospital ? now : previous?.hospitalExitAt || null,
       lastSeen: now
     };
     changed = true;
@@ -667,6 +681,10 @@ function syncMemberStatusTracking(members) {
   }
 
   if (changed) saveMemberStatusCache();
+}
+
+function isTrackedHospitalSignature(signature) {
+  return String(signature || "").toLowerCase().includes("hospital");
 }
 
 function getMemberStatusTracking(member) {
@@ -820,6 +838,52 @@ function renderOnlineMembers(members) {
 
   setHtml("onlineMembers", fullList);
   setHtml("onlineMembersSide", sideList);
+}
+
+function renderInactiveMembers(members) {
+  const inactive = members
+    .map(member => ({ member, age: getLastActionAgeSeconds(member) }))
+    .filter(entry => Number.isFinite(entry.age) && entry.age >= 86400)
+    .sort((a, b) => b.age - a.age || String(a.member.name).localeCompare(String(b.member.name)));
+
+  setHtml(
+    "inactiveMembers",
+    inactive.length
+      ? inactive.map(({ member, age }) => inactiveMemberRow(member, age)).join("")
+      : emptyMessage("No faction members inactive for 1 day or more.")
+  );
+}
+
+function inactiveMemberRow(member, ageSeconds) {
+  const action = getLastAction(member);
+  const status = getMemberStatus(member);
+  const days = Math.max(1, Math.floor(ageSeconds / 86400));
+  const hours = Math.floor((ageSeconds % 86400) / 3600);
+  const since = action.relative || `${formatNumber(days)} day${days === 1 ? "" : "s"} ago`;
+  const detail = status.description || status.state || "No current status";
+
+  return `
+    <div class="intel-row">
+      <span>
+        ${memberLink(member)}
+        <small>${escapeHtml(`${since} - ${detail}`)}</small>
+      </span>
+      <span class="badge warning">${escapeHtml(`${formatNumber(days)}d ${hours}h`)}</span>
+    </div>
+  `;
+}
+
+function setMemberView(mode) {
+  memberView = ["status", "inactive"].includes(mode) ? mode : "status";
+  localStorage.setItem("memberView", memberView);
+
+  document.querySelectorAll("[data-member-view]").forEach(button => {
+    button.classList.toggle("active-tool", button.dataset.memberView === memberView);
+  });
+
+  document.querySelectorAll("[data-member-panel]").forEach(panel => {
+    panel.hidden = panel.dataset.memberPanel !== memberView;
+  });
 }
 
 function renderOwnHospital(members) {
@@ -1097,6 +1161,7 @@ async function loadEnemyFaction(enemyId) {
     setText("warLastChecked", new Date().toLocaleTimeString());
     renderWarTargetTable(members);
     renderEnemyHospital(members);
+    renderEnemyMedOuts(members);
     enrichEnemyStats(members);
   } catch (err) {
     setHtml("enemyHospitalList", emptyMessage(`Enemy status unavailable: ${err.message}`));
@@ -1142,6 +1207,7 @@ async function enrichEnemyStats(members) {
 
   latestEnemyMembers = await enrichMembersWithBSP(enrichedMembers, 100);
   renderWarTargetTable(latestEnemyMembers);
+  renderEnemyMedOuts(latestEnemyMembers);
 }
 
 function renderWarTargetTable(members) {
@@ -1371,14 +1437,111 @@ function sortByUntil(members) {
 function renderAttacks(data, factionId) {
   const attacks = normalizeAttacks(data)
     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-    .slice(0, 10);
+  const recent = attacks.slice(0, 10);
 
   setHtml(
     "recentAttacks",
-    attacks.length
-      ? attacks.map(attack => attackRow(attack, factionId || activeFactionId)).join("")
+    recent.length
+      ? recent.map(attack => attackRow(attack, factionId || activeFactionId)).join("")
       : emptyMessage("No recent attacks found.")
   );
+
+  loadRetalTargets(attacks, factionId || activeFactionId);
+}
+
+async function loadRetalTargets(attacks, factionId) {
+  const byAttacker = new Map();
+
+  attacks.forEach(attack => {
+    const incoming = String(attack.defender.factionId) === String(factionId);
+    const outsideAttacker = String(attack.attacker.factionId) !== String(factionId);
+    const id = getPlayerId(attack.attacker);
+    if (!incoming || !outsideAttacker || !/^\d+$/.test(String(id))) return;
+
+    const previous = byAttacker.get(String(id));
+    if (!previous || Number(attack.timestamp || 0) > Number(previous.lastAttack || 0)) {
+      byAttacker.set(String(id), {
+        ...attack.attacker,
+        lastAttack: attack.timestamp,
+        victim: attack.defender
+      });
+    }
+  });
+
+  latestRetalTargets = [...byAttacker.values()]
+    .sort((a, b) => Number(b.lastAttack || 0) - Number(a.lastAttack || 0))
+    .slice(0, 10);
+  renderQuickStrikeTargets();
+
+  if (!latestRetalTargets.length) return;
+
+  latestRetalTargets = await enrichMembersWithBSP(latestRetalTargets, 10);
+  renderQuickStrikeTargets();
+}
+
+function renderEnemyMedOuts(members) {
+  const now = Date.now();
+  latestMedOutTargets = members
+    .filter(member => {
+      const tracked = getMemberStatusTracking(member);
+      return tracked?.hospitalExitAt &&
+        now - tracked.hospitalExitAt <= MED_OUT_WINDOW_MS &&
+        isOnline(member) &&
+        !isHospital(member) &&
+        !isTravelling(member);
+    })
+    .sort((a, b) => Number(getMemberStatusTracking(b)?.hospitalExitAt || 0) - Number(getMemberStatusTracking(a)?.hospitalExitAt || 0))
+    .slice(0, 10);
+
+  renderQuickStrikeTargets();
+}
+
+function setQuickStrikeView(mode) {
+  quickStrikeView = ["retals", "medouts"].includes(mode) ? mode : "retals";
+  localStorage.setItem("quickStrikeView", quickStrikeView);
+
+  document.querySelectorAll("[data-strike-view]").forEach(button => {
+    button.classList.toggle("active-tool", button.dataset.strikeView === quickStrikeView);
+  });
+
+  renderQuickStrikeTargets();
+}
+
+function renderQuickStrikeTargets() {
+  const rows = quickStrikeView === "medouts"
+    ? latestMedOutTargets.map(medOutStrikeRow)
+    : latestRetalTargets.map(retalStrikeRow);
+
+  const empty = quickStrikeView === "medouts"
+    ? "No tracked enemy med outs online right now."
+    : "No incoming faction attackers in the recent attack feed.";
+
+  setHtml("quickStrikeTargets", rows.length ? rows.join("") : emptyMessage(empty));
+}
+
+function retalStrikeRow(member) {
+  const victim = member.victim?.name ? `Hit ${member.victim.name}` : "Incoming faction attack";
+  const time = member.lastAttack ? formatDateTime(member.lastAttack) : "Recent";
+  return quickStrikeRow(member, `${victim} - ${time}`);
+}
+
+function medOutStrikeRow(member) {
+  const tracked = getMemberStatusTracking(member);
+  return quickStrikeRow(member, `Online after hospital - ${formatElapsed(Date.now() - Number(tracked?.hospitalExitAt || Date.now()))} ago`);
+}
+
+function quickStrikeRow(member, detail) {
+  const estimate = formatMemberEstimate(member);
+  return `
+    <div class="intel-row strike-row">
+      <span>
+        ${tableMemberLink(member)}
+        <small>${escapeHtml(detail)}</small>
+        <small>BSP: ${escapeHtml(estimate || "-")}</small>
+      </span>
+      ${attackActionLink(member)}
+    </div>
+  `;
 }
 
 function normalizeAttacks(data) {
@@ -2887,6 +3050,16 @@ function formatDateTime(unixSeconds) {
   return new Date(Number(unixSeconds) * 1000).toLocaleString();
 }
 
+function formatElapsed(milliseconds) {
+  const seconds = Math.max(0, Math.floor(Number(milliseconds || 0) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  if (hours) return `${hours}h ${minutes % 60}m`;
+  if (minutes) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
+}
+
 function emptyMessage(message) {
   return `<p class="muted">${escapeHtml(message)}</p>`;
 }
@@ -2912,6 +3085,8 @@ function init() {
   setTargetPreset(targetPreset);
   setWarSortMode(warSortMode);
   setWarView(warView);
+  setMemberView(memberView);
+  setQuickStrikeView(quickStrikeView);
   syncAccessState();
 
   if (!hasTornApiKey()) {
@@ -2934,6 +3109,8 @@ Object.assign(window, {
   setTargetPreset,
   setWarSortMode,
   setWarView,
+  setMemberView,
+  setQuickStrikeView,
   searchTargets,
   copyTargetIds,
   searchRecruiter,
