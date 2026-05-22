@@ -36,6 +36,9 @@ let activePlayerId = null;
 let latestFactionMembers = [];
 let latestEnemyMembers = [];
 let latestTargetResults = [];
+let targetResultPool = [];
+let targetPageIndex = 0;
+let targetSearchSeenIds = new Set();
 let latestRecruiterResults = [];
 let latestFactionChain = null;
 let targetPreset = "custom";
@@ -1648,15 +1651,7 @@ async function getEmuBsData(endpoint, params) {
 }
 
 async function getTargetFeed(params) {
-  try {
-    return await getEmuBsData("/get-targets", {
-      key: getTornApiKey(),
-      ...params
-    });
-  } catch (err) {
-    if (!isUnregisteredTargetFeedKey(err)) throw err;
-    return getWorkerTargetFeed(params);
-  }
+  return getWorkerTargetFeed(params);
 }
 
 async function getWorkerTargetFeed(params) {
@@ -1807,20 +1802,86 @@ async function searchTargets() {
   setText("targetStatus", "Searching targets...");
 
   try {
-    const data = targetPreset === "manual"
-      ? await searchManualTargets()
-      : await searchFilteredTargets();
+    await loadOwnBattleStats();
+    targetPageIndex = 0;
+    targetSearchSeenIds = new Set();
 
-    const verified = await filterSearchTargets(normalizeTargetResults(data));
-    const targets = await enrichTargetsWithBSP(verified);
-    latestTargetResults = targets;
-    renderTargetResults(targets);
-    setText("targetStatus", `${targets.length} target${targets.length === 1 ? "" : "s"} loaded.`);
+    if (targetPreset === "manual") {
+      targetResultPool = await loadTargetFinderBatch();
+    } else {
+      targetResultPool = [];
+      appendUniqueTargets(await loadTargetFinderBatch());
+    }
+
+    renderTargetPage();
+    setText("targetStatus", `${targetResultPool.length} matching target${targetResultPool.length === 1 ? "" : "s"} ready.`);
   } catch (err) {
+    targetResultPool = [];
     latestTargetResults = [];
     setHtml("targetResults", emptyTableRow(err.message || "Target lookup failed.", 6));
+    updateTargetPager();
     setText("targetStatus", err.message || "Target lookup failed.");
   }
+}
+
+async function loadTargetFinderBatch() {
+  const data = targetPreset === "manual"
+    ? await searchManualTargets()
+    : await searchFilteredTargets();
+  const verified = await filterSearchTargets(normalizeTargetResults(data));
+  const withBsp = await enrichTargetsWithBSP(verified);
+  return filterTargetsByViewerFairFight(withBsp);
+}
+
+function appendUniqueTargets(targets) {
+  targets.forEach(target => {
+    const id = String(target.player_id || target.id || target.target || "");
+    if (!id || targetSearchSeenIds.has(id)) return;
+    targetSearchSeenIds.add(id);
+    targetResultPool.push(target);
+  });
+}
+
+async function changeTargetPage(direction) {
+  if (!hasTornApiKey() || targetPreset === "manual") return;
+
+  const pageSize = getTargetPageSize();
+  const nextPage = Math.max(0, targetPageIndex + direction);
+  const needsMoreTargets = direction > 0 && nextPage * pageSize >= targetResultPool.length;
+
+  if (needsMoreTargets) {
+    setText("targetStatus", "Loading more targets...");
+    const before = targetResultPool.length;
+    const currentPageEnd = (targetPageIndex + 1) * pageSize;
+
+    try {
+      appendUniqueTargets(await loadTargetFinderBatch());
+    } catch (err) {
+      setText("targetStatus", err.message || "Target lookup failed.");
+      return;
+    }
+
+    if (targetResultPool.length === before) {
+      setText("targetStatus", "No new matching targets in the next batch. Try again or widen filters.");
+      updateTargetPager();
+      return;
+    }
+
+    if (before < currentPageEnd) {
+      renderTargetPage();
+      setText("targetStatus", "Added more matches to the current page.");
+      return;
+    }
+  }
+
+  if (nextPage * pageSize >= targetResultPool.length) {
+    updateTargetPager();
+    return;
+  }
+
+  targetPageIndex = nextPage;
+  renderTargetPage();
+  setText("targetStatus", `Showing target page ${targetPageIndex + 1}.`);
 }
 
 async function filterSearchTargets(targets) {
@@ -1869,19 +1930,24 @@ async function enrichTargetsWithBSP(targets) {
 async function searchFilteredTargets() {
   const limit = clampNumber(inputValue("targetLimit", 20), 1, 50);
   const params = {
-    limit
+    limit: targetPreset === "custom" ? 50 : limit
   };
 
   try {
-    if (targetPreset === "respect" || targetPreset === "level") {
-      params.preset = targetPreset;
+    if (targetPreset === "respect") {
+      params.preset = "respect";
+      return await getTargetFeed(params);
+    }
+
+    if (targetPreset === "level") {
+      params.preset = "level";
       return await getTargetFeed(params);
     }
 
     params.minlevel = clampNumber(inputValue("targetMinLevel", 1), 1, 100);
     params.maxlevel = clampNumber(inputValue("targetMaxLevel", 100), 1, 100);
     params.minff = Math.max(1, Number(inputValue("targetMinFF", 1)) || 1);
-    params.maxff = Math.max(1, Number(inputValue("targetMaxFF", 3)) || 3);
+    params.maxff = Math.max(params.minff, Number(inputValue("targetMaxFF", 3)) || 3);
     params.inactiveonly = document.getElementById("targetInactive")?.value || "1";
     params.factionless = document.getElementById("targetFactionless")?.value || "0";
 
@@ -1889,6 +1955,50 @@ async function searchFilteredTargets() {
   } catch (err) {
     throw new Error(formatTargetFeedError(err, "Target Finder"));
   }
+}
+
+function filterTargetsByViewerFairFight(targets) {
+  if (targetPreset === "manual") return targets;
+
+  const [minFF, maxFF] = getViewerFairFightRange();
+  const [minStats, maxStats] = getTargetStatsRange();
+
+  return targets.filter(target => {
+    const fairFight = Number(target.bsp?.fair_fight);
+    const stats = getTargetEstimateValue(target);
+    const ffMatches = Number.isFinite(fairFight) && fairFight >= minFF && fairFight <= maxFF;
+    const statMatches = (!minStats || stats >= minStats) && (!maxStats || stats <= maxStats);
+    return ffMatches && stats > 0 && statMatches;
+  });
+}
+
+function getViewerFairFightRange() {
+  if (targetPreset === "respect") return [2, 3];
+  if (targetPreset === "level") return [1, 3];
+
+  const min = Math.max(1, Number(inputValue("targetMinFF", 1)) || 1);
+  const max = Math.max(min, Number(inputValue("targetMaxFF", 3)) || 3);
+  return [min, max];
+}
+
+function setTargetStatsPreset(value) {
+  const maxInput = document.getElementById("targetMaxStats");
+  if (maxInput && value && value !== "custom") maxInput.value = value;
+  if (maxInput && value === "any") maxInput.value = "";
+}
+
+function getTargetStatsRange() {
+  const min = parseNumberish(inputValue("targetMinStats", ""));
+  const max = parseNumberish(inputValue("targetMaxStats", ""));
+  return [Math.max(0, min), max > 0 ? Math.max(min || 0, max) : 0];
+}
+
+function getTargetEstimateValue(target) {
+  return parseNumberish(target.bsp?.tbs || target.bs_estimate || target.bss_public);
+}
+
+function getTargetPageSize() {
+  return clampNumber(inputValue("targetLimit", 20), 1, 50);
 }
 
 async function searchManualTargets() {
@@ -1946,6 +2056,26 @@ function renderTargetResults(targets) {
       ? targets.map(target => targetRow(target)).join("")
       : emptyTableRow("No targets found.", 6)
   );
+}
+
+function renderTargetPage() {
+  const pageSize = getTargetPageSize();
+  const start = targetPageIndex * pageSize;
+  latestTargetResults = targetResultPool.slice(start, start + pageSize);
+  renderTargetResults(latestTargetResults);
+  updateTargetPager();
+}
+
+function updateTargetPager() {
+  const pageSize = getTargetPageSize();
+  const current = targetResultPool.length ? targetPageIndex + 1 : 0;
+  const pages = Math.max(1, Math.ceil(targetResultPool.length / pageSize));
+  const prev = document.getElementById("targetPrevPage");
+
+  if (prev) prev.disabled = targetPreset === "manual" || targetPageIndex <= 0;
+  setText("targetPageStatus", targetPreset === "manual"
+    ? "Manual list"
+    : `PAGE ${current || 1} / ${pages}`);
 }
 
 function targetRow(target) {
@@ -2073,16 +2203,11 @@ function parseRange(value) {
 function formatTargetFeedError(err, toolName) {
   const message = String(err?.message || err || "");
 
-  if (isUnregisteredTargetFeedKey(err)) {
-    return `${toolName} target feed key is not registered and the Worker fallback is unavailable.`;
+  if (/target_feed_api_key|route not found|secret is missing/i.test(message)) {
+    return `${toolName} Worker target feed is not deployed or its secret is missing.`;
   }
 
   return `${toolName} target feed unavailable. ${message || "Try again."}`;
-}
-
-function isUnregisteredTargetFeedKey(err) {
-  const message = String(err?.message || err || "");
-  return /sign up at .*\.com|invalid api key|key is not registered|torn profile fallback is still active/i.test(message);
 }
 
 function isFactionlessCandidate(target) {
