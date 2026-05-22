@@ -385,6 +385,35 @@ select{
   padding:10px;
 }
 
+.tool-grid input[type="range"]{
+  min-width:150px;
+  padding:0;
+  accent-color:#00ff66;
+}
+
+.range-tool{
+  gap:6px;
+}
+
+.range-line{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:38px;
+}
+
+.range-line strong{
+  min-width:54px;
+  color:#c9ffdd;
+  text-align:right;
+}
+
+.range-tool small{
+  color:#c9ffdd;
+  opacity:.84;
+  text-shadow:none;
+}
+
 .hidden,
 .manual-targets{
   display:none;
