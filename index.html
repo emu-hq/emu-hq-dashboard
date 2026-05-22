@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260522-flights-1" />
+  <link rel="stylesheet" href="style.css?v=20260522-flights-2" />
 </head>
 
 <body>
@@ -169,6 +169,11 @@
               </div>
 
               <div class="sub-title">ENEMY TARGETS</div>
+              <div class="tool-actions war-flight-controls">
+                <button type="button" class="save-btn" data-war-flight-mode="eta" onclick="setWarFlightMode('eta')">FLIGHT ETA</button>
+                <button type="button" class="save-btn" data-war-flight-mode="overseas" onclick="setWarFlightMode('overseas')">OVERSEAS ONLY</button>
+                <button type="button" class="save-btn" data-war-flight-mode="all" onclick="setWarFlightMode('all')">ALL STATUS</button>
+              </div>
               <div class="data-table-wrap">
                 <table class="data-table">
                   <thead>
@@ -453,6 +458,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260522-flights-1"></script>
+  <script src="app.js?v=20260522-flights-2"></script>
 </body>
-</html
+</html>
