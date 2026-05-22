@@ -2034,6 +2034,12 @@ function updateTargetFFLabel() {
   setText("targetFFValue", `FF ${max.toFixed(max % 1 ? 2 : 0)}`);
 }
 
+function enableTargetFFMode() {
+  const toggle = document.getElementById("targetUseFF");
+  if (toggle && targetPreset === "custom") toggle.checked = true;
+  syncTargetSearchModes();
+}
+
 function isTargetFFEnabled() {
   return targetPreset !== "custom" || Boolean(document.getElementById("targetUseFF")?.checked);
 }
@@ -2049,11 +2055,6 @@ function syncTargetSearchModes() {
   document.getElementById("targetFFControls")?.classList.toggle("filter-disabled", !useFF);
   document.getElementById("targetStatsControls")?.classList.toggle("filter-disabled", !useStats);
 
-  ["targetMaxFF", "targetMaxFFNumber"].forEach(id => {
-    const input = document.getElementById(id);
-    if (input) input.disabled = !useFF;
-  });
-
   ["targetStatsPreset", "targetMinStats", "targetMaxStats"].forEach(id => {
     const input = document.getElementById(id);
     if (input) input.disabled = !useStats;
@@ -2061,6 +2062,7 @@ function syncTargetSearchModes() {
 }
 
 function setTargetFFFromNumber() {
+  enableTargetFFMode();
   const number = document.getElementById("targetMaxFFNumber");
   const slider = document.getElementById("targetMaxFF");
   const value = clampNumber(number?.value || 3, 1.01, 5);
@@ -3390,7 +3392,10 @@ function init() {
   keyInput?.addEventListener("keydown", event => {
     if (event.key === "Enter") saveKey();
   });
-  document.getElementById("targetMaxFF")?.addEventListener("input", updateTargetFFLabel);
+  document.getElementById("targetMaxFF")?.addEventListener("input", () => {
+    enableTargetFFMode();
+    updateTargetFFLabel();
+  });
   document.getElementById("targetMaxFFNumber")?.addEventListener("input", setTargetFFFromNumber);
   document.getElementById("targetUseFF")?.addEventListener("change", syncTargetSearchModes);
   document.getElementById("targetUseStats")?.addEventListener("change", syncTargetSearchModes);
@@ -3424,6 +3429,7 @@ Object.assign(window, {
   setTargetPreset,
   setTargetStatsPreset,
   updateTargetFFLabel,
+  enableTargetFFMode,
   setTargetFFFromNumber,
   syncTargetSearchModes,
   changeTargetPage,
