@@ -220,7 +220,7 @@ async function loadAllData() {
 
     if (factionState?.factionId) {
       try {
-        const memberData = await loadFactionMembers(factionState.factionId);
+        const memberData = await loadTrackedFactionMembers(factionState.factionId);
         const endpointMembers = normalizeMembers(memberData.members || memberData);
 
         if (endpointMembers.length) {
@@ -1826,6 +1826,7 @@ function setTargetPreset(preset) {
   }
 
   updateTargetFFLabel();
+  syncTargetSearchModes();
 }
 
 async function searchTargets() {
@@ -1999,17 +2000,19 @@ function filterTargetsByViewerFairFight(targets) {
 
   const [minFF, maxFF] = getViewerFairFightRange();
   const [minStats, maxStats] = getTargetStatsRange();
+  const useFF = isTargetFFEnabled();
+  const useStats = isTargetStatsEnabled();
 
   return targets.filter(target => {
     const fairFight = Number(target.bsp?.fair_fight);
     const stats = getTargetEstimateValues(target);
-    const ffMatches = Number.isFinite(fairFight) && fairFight >= minFF && fairFight <= maxFF;
-    const statMatches = stats.some(value =>
+    const ffMatches = !useFF || (Number.isFinite(fairFight) && fairFight >= minFF && fairFight <= maxFF);
+    const statMatches = !useStats || stats.some(value =>
       value > 0 &&
       (!minStats || value >= minStats) &&
       (!maxStats || value <= maxStats)
     );
-    return ffMatches && statMatches;
+    return ffMatches && statMatches && (!useStats || stats.length > 0);
   });
 }
 
@@ -2023,30 +2026,78 @@ function getViewerFairFightRange() {
 }
 
 function updateTargetFFLabel() {
-  const max = Math.max(1, Number(inputValue("targetMaxFF", 3)) || 3);
+  const slider = document.getElementById("targetMaxFF");
+  const number = document.getElementById("targetMaxFFNumber");
+  const max = Math.max(1.01, Number(inputValue("targetMaxFF", 3)) || 3);
+  if (slider) slider.value = String(max);
+  if (number && Number(number.value) !== max) number.value = String(max);
   setText("targetFFValue", `FF ${max.toFixed(max % 1 ? 2 : 0)}`);
+}
+
+function isTargetFFEnabled() {
+  return targetPreset !== "custom" || Boolean(document.getElementById("targetUseFF")?.checked);
+}
+
+function isTargetStatsEnabled() {
+  return targetPreset === "custom" && Boolean(document.getElementById("targetUseStats")?.checked);
+}
+
+function syncTargetSearchModes() {
+  const useFF = isTargetFFEnabled();
+  const useStats = isTargetStatsEnabled();
+
+  document.getElementById("targetFFControls")?.classList.toggle("filter-disabled", !useFF);
+  document.getElementById("targetStatsControls")?.classList.toggle("filter-disabled", !useStats);
+
+  ["targetMaxFF", "targetMaxFFNumber"].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) input.disabled = !useFF;
+  });
+
+  ["targetStatsPreset", "targetMinStats", "targetMaxStats"].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) input.disabled = !useStats;
+  });
+}
+
+function setTargetFFFromNumber() {
+  const number = document.getElementById("targetMaxFFNumber");
+  const slider = document.getElementById("targetMaxFF");
+  const value = clampNumber(number?.value || 3, 1.01, 5);
+
+  if (slider) slider.value = String(value);
+  if (number) number.value = String(value);
+  updateTargetFFLabel();
 }
 
 function setTargetStatsPreset(value) {
   const maxInput = document.getElementById("targetMaxStats");
+  const toggle = document.getElementById("targetUseStats");
+  if (toggle && value && value !== "any") toggle.checked = true;
   if (maxInput && value && value !== "custom") maxInput.value = value;
   if (maxInput && value === "any") maxInput.value = "";
+  syncTargetSearchModes();
 }
 
 function getTargetStatsRange() {
+  if (!isTargetStatsEnabled()) return [0, 0];
   const min = parseNumberish(inputValue("targetMinStats", ""));
   const max = parseNumberish(inputValue("targetMaxStats", ""));
   return [Math.max(0, min), max > 0 ? Math.max(min || 0, max) : 0];
 }
 
 function getTargetSourceFairFightRange(batchIndex = 0) {
-  const [minStats, maxStats] = getTargetStatsRange();
+  const [manualMinStats, manualMaxStats] = getTargetStatsRange();
+  const minStats = manualMinStats;
+  const maxStats = manualMaxStats || (!manualMinStats && isTargetFFEnabled() ? getAutoTargetStatCeiling() : 0);
   let min;
   let max;
 
   if (!minStats && !maxStats) {
-    min = Math.max(1.01, Number(inputValue("targetMinFF", 1)) || 1.01);
-    max = Math.max(min + 0.01, Number(inputValue("targetMaxFF", 3)) || 3);
+    min = 1.01;
+    max = isTargetFFEnabled()
+      ? Math.max(min + 0.01, Number(inputValue("targetMaxFF", 3)) || 3)
+      : 3;
   } else {
     const sourceMinStats = minStats || Math.max(1, maxStats / 80);
     const sourceMaxStats = maxStats || Math.max(sourceMinStats * 4, TARGET_FEED_STAT_BASE * 4);
@@ -2059,6 +2110,15 @@ function getTargetSourceFairFightRange(batchIndex = 0) {
   const bandMax = Math.max(min + 0.01, max - step * batchIndex);
   const bandMin = Math.max(min, bandMax - step);
   return { min: formatTargetSourceFf(bandMin), max: formatTargetSourceFf(bandMax) };
+}
+
+function getAutoTargetStatCeiling() {
+  const ownTotal = Number(ownBattleStats?.total || 0);
+  if (!ownTotal) return 0;
+
+  const maxFF = getViewerFairFightRange()[1];
+  const scoreRatio = Math.max(0.04, ((maxFF - 1) * 3) / 8);
+  return Math.max(1000, ownTotal * scoreRatio * scoreRatio * 2);
 }
 
 function statsToTargetFeedFairFight(stats) {
@@ -3331,6 +3391,9 @@ function init() {
     if (event.key === "Enter") saveKey();
   });
   document.getElementById("targetMaxFF")?.addEventListener("input", updateTargetFFLabel);
+  document.getElementById("targetMaxFFNumber")?.addEventListener("input", setTargetFFFromNumber);
+  document.getElementById("targetUseFF")?.addEventListener("change", syncTargetSearchModes);
+  document.getElementById("targetUseStats")?.addEventListener("change", syncTargetSearchModes);
 
   updateClock();
   updateCountdowns();
@@ -3361,6 +3424,8 @@ Object.assign(window, {
   setTargetPreset,
   setTargetStatsPreset,
   updateTargetFFLabel,
+  setTargetFFFromNumber,
+  syncTargetSearchModes,
   changeTargetPage,
   setWarSortMode,
   setWarView,
