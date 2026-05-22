@@ -39,6 +39,7 @@ let latestRecruiterResults = [];
 let latestFactionChain = null;
 let targetPreset = "custom";
 let warSortMode = localStorage.getItem("warSortMode") || "status";
+let warFlightMode = localStorage.getItem("warFlightMode") || "all";
 let ownBattleStats = null;
 let memberStatusCache = loadMemberStatusCache();
 
@@ -1103,6 +1104,7 @@ async function enrichEnemyStats(members) {
 function renderWarTargetTable(members) {
   latestEnemyMembers = members;
   const sorted = sortEnemyTargets(members);
+  const visible = filterWarFlightMembers(sorted);
   const groups = [
     ["hospital", "HOSPITAL"],
     ["okay", "OKAY / ATTACKABLE"],
@@ -1112,7 +1114,7 @@ function renderWarTargetTable(members) {
 
   const rows = groups
     .map(([key, label]) => {
-      const groupMembers = sorted.filter(member => getWarTargetGroup(member) === key);
+      const groupMembers = visible.filter(member => getWarTargetGroup(member) === key);
       if (!groupMembers.length) return "";
 
       return `
@@ -1132,6 +1134,17 @@ function renderWarTargetTable(members) {
 
 function sortEnemyTargets(members) {
   return [...members].sort((a, b) => {
+    if (warFlightMode === "eta") {
+      const aTravel = getTravelInfo(a);
+      const bTravel = getTravelInfo(b);
+      const aEta = getFlightSortTime(aTravel);
+      const bEta = getFlightSortTime(bTravel);
+      const aTravelling = aTravel ? 0 : 1;
+      const bTravelling = bTravel ? 0 : 1;
+
+      return aTravelling - bTravelling || aEta - bEta || String(a.name).localeCompare(String(b.name));
+    }
+
     if (warSortMode === "level") {
       return Number(b.level || 0) - Number(a.level || 0) || targetStatusRank(a) - targetStatusRank(b);
     }
@@ -1149,9 +1162,31 @@ function sortEnemyTargets(members) {
   });
 }
 
+function filterWarFlightMembers(members) {
+  if (warFlightMode !== "overseas") return members;
+  return members.filter(member => getTravelInfo(member)?.direction === "abroad");
+}
+
+function getFlightSortTime(travel) {
+  if (!travel) return Number.MAX_SAFE_INTEGER;
+  if (travel.direction === "abroad") return Number.MAX_SAFE_INTEGER - 1;
+  return travel.estimates?.airstrip || travel.estimates?.standard || Number.MAX_SAFE_INTEGER - 2;
+}
+
 function setWarSortMode(mode) {
   warSortMode = ["status", "level", "stats"].includes(mode) ? mode : "status";
   localStorage.setItem("warSortMode", warSortMode);
+
+  if (latestEnemyMembers.length) renderWarTargetTable(latestEnemyMembers);
+}
+
+function setWarFlightMode(mode) {
+  warFlightMode = ["all", "eta", "overseas"].includes(mode) ? mode : "all";
+  localStorage.setItem("warFlightMode", warFlightMode);
+
+  document.querySelectorAll("[data-war-flight-mode]").forEach(button => {
+    button.classList.toggle("active-tool", button.dataset.warFlightMode === warFlightMode);
+  });
 
   if (latestEnemyMembers.length) renderWarTargetTable(latestEnemyMembers);
 }
@@ -2801,6 +2836,7 @@ function init() {
   updateCountdowns();
   setTargetPreset(targetPreset);
   setWarSortMode(warSortMode);
+  setWarFlightMode(warFlightMode);
   syncAccessState();
 
   if (!hasTornApiKey()) {
@@ -2822,6 +2858,7 @@ Object.assign(window, {
   saveKey,
   setTargetPreset,
   setWarSortMode,
+  setWarFlightMode,
   searchTargets,
   copyTargetIds,
   searchRecruiter,
