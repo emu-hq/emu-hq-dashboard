@@ -7,6 +7,7 @@ const BSP_SCRIPT_VERSION = "9.4.3";
 const BSP_CACHE_DAYS = 5;
 const BUILD_VERSION = "2026-05-20-native-tools-9";
 const POLL_INTERVAL_MS = 60000;
+const TARGET_FEED_STAT_BASE = 42565126;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
@@ -39,6 +40,7 @@ let latestEnemyMembers = [];
 let latestTargetResults = [];
 let targetResultPool = [];
 let targetPageIndex = 0;
+let targetBatchIndex = 0;
 let targetSearchSeenIds = new Set();
 let latestRecruiterResults = [];
 let latestFactionChain = null;
@@ -1822,6 +1824,8 @@ function setTargetPreset(preset) {
   } else {
     setText("targetStatus", "Custom filter mode.");
   }
+
+  updateTargetFFLabel();
 }
 
 async function searchTargets() {
@@ -1835,6 +1839,7 @@ async function searchTargets() {
   try {
     await loadOwnBattleStats();
     targetPageIndex = 0;
+    targetBatchIndex = 0;
     targetSearchSeenIds = new Set();
 
     if (targetPreset === "manual") {
@@ -1858,7 +1863,7 @@ async function searchTargets() {
 async function loadTargetFinderBatch() {
   const data = targetPreset === "manual"
     ? await searchManualTargets()
-    : await searchFilteredTargets();
+    : await searchFilteredTargets(targetBatchIndex++);
   const verified = await filterSearchTargets(normalizeTargetResults(data));
   const withBsp = await enrichTargetsWithBSP(verified);
   return filterTargetsByViewerFairFight(withBsp);
@@ -1958,7 +1963,7 @@ async function enrichTargetsWithBSP(targets) {
   return enriched;
 }
 
-async function searchFilteredTargets() {
+async function searchFilteredTargets(batchIndex = 0) {
   const limit = clampNumber(inputValue("targetLimit", 20), 1, 50);
   const params = {
     limit: targetPreset === "custom" ? 50 : limit
@@ -1977,8 +1982,9 @@ async function searchFilteredTargets() {
 
     params.minlevel = clampNumber(inputValue("targetMinLevel", 1), 1, 100);
     params.maxlevel = clampNumber(inputValue("targetMaxLevel", 100), 1, 100);
-    params.minff = Math.max(1, Number(inputValue("targetMinFF", 1)) || 1);
-    params.maxff = Math.max(params.minff, Number(inputValue("targetMaxFF", 3)) || 3);
+    const sourceFfRange = getTargetSourceFairFightRange(batchIndex);
+    params.minff = sourceFfRange.min;
+    params.maxff = sourceFfRange.max;
     params.inactiveonly = document.getElementById("targetInactive")?.value || "1";
     params.factionless = document.getElementById("targetFactionless")?.value || "0";
 
@@ -1996,10 +2002,14 @@ function filterTargetsByViewerFairFight(targets) {
 
   return targets.filter(target => {
     const fairFight = Number(target.bsp?.fair_fight);
-    const stats = getTargetEstimateValue(target);
+    const stats = getTargetEstimateValues(target);
     const ffMatches = Number.isFinite(fairFight) && fairFight >= minFF && fairFight <= maxFF;
-    const statMatches = (!minStats || stats >= minStats) && (!maxStats || stats <= maxStats);
-    return ffMatches && stats > 0 && statMatches;
+    const statMatches = stats.some(value =>
+      value > 0 &&
+      (!minStats || value >= minStats) &&
+      (!maxStats || value <= maxStats)
+    );
+    return ffMatches && statMatches;
   });
 }
 
@@ -2010,6 +2020,11 @@ function getViewerFairFightRange() {
   const min = Math.max(1, Number(inputValue("targetMinFF", 1)) || 1);
   const max = Math.max(min, Number(inputValue("targetMaxFF", 3)) || 3);
   return [min, max];
+}
+
+function updateTargetFFLabel() {
+  const max = Math.max(1, Number(inputValue("targetMaxFF", 3)) || 3);
+  setText("targetFFValue", `FF ${max.toFixed(max % 1 ? 2 : 0)}`);
 }
 
 function setTargetStatsPreset(value) {
@@ -2024,8 +2039,46 @@ function getTargetStatsRange() {
   return [Math.max(0, min), max > 0 ? Math.max(min || 0, max) : 0];
 }
 
+function getTargetSourceFairFightRange(batchIndex = 0) {
+  const [minStats, maxStats] = getTargetStatsRange();
+  let min;
+  let max;
+
+  if (!minStats && !maxStats) {
+    min = Math.max(1.01, Number(inputValue("targetMinFF", 1)) || 1.01);
+    max = Math.max(min + 0.01, Number(inputValue("targetMaxFF", 3)) || 3);
+  } else {
+    const sourceMinStats = minStats || Math.max(1, maxStats / 80);
+    const sourceMaxStats = maxStats || Math.max(sourceMinStats * 4, TARGET_FEED_STAT_BASE * 4);
+    min = Math.max(1.01, statsToTargetFeedFairFight(sourceMinStats));
+    max = Math.max(min + 0.01, statsToTargetFeedFairFight(sourceMaxStats));
+  }
+
+  const width = Math.max(0.01, max - min);
+  const step = Math.max(0.01, width / 6);
+  const bandMax = Math.max(min + 0.01, max - step * batchIndex);
+  const bandMin = Math.max(min, bandMax - step);
+  return { min: formatTargetSourceFf(bandMin), max: formatTargetSourceFf(bandMax) };
+}
+
+function statsToTargetFeedFairFight(stats) {
+  return 1 + Math.sqrt(Math.max(1, Number(stats) || 1) / TARGET_FEED_STAT_BASE);
+}
+
+function formatTargetSourceFf(value) {
+  return Math.max(1.01, Number(value) || 1.01).toFixed(3);
+}
+
 function getTargetEstimateValue(target) {
   return parseNumberish(target.bsp?.tbs || target.bs_estimate || target.bss_public);
+}
+
+function getTargetEstimateValues(target) {
+  return [
+    parseNumberish(target.bsp?.tbs),
+    parseNumberish(target.bs_estimate),
+    parseNumberish(target.bss_public)
+  ].filter(value => value > 0);
 }
 
 function getTargetPageSize() {
@@ -3277,6 +3330,7 @@ function init() {
   keyInput?.addEventListener("keydown", event => {
     if (event.key === "Enter") saveKey();
   });
+  document.getElementById("targetMaxFF")?.addEventListener("input", updateTargetFFLabel);
 
   updateClock();
   updateCountdowns();
@@ -3306,4 +3360,28 @@ Object.assign(window, {
   saveKey,
   setTargetPreset,
   setTargetStatsPreset,
-  changeTargetPag
+  updateTargetFFLabel,
+  changeTargetPage,
+  setWarSortMode,
+  setWarView,
+  setMemberView,
+  setQuickStrikeView,
+  searchTargets,
+  copyTargetIds,
+  searchRecruiter,
+  copyRecruitIds,
+  loadPlayerView,
+  loadSelfPlayerView,
+  openPlayerProfile,
+  loadFactionScout,
+  loadCurrentFactionScout,
+  loadEnemyFactionScout,
+  openFactionProfile,
+  loadActiveWars,
+  openExternalTool,
+  refreshWarTools
+});
+
+init();
+
+
