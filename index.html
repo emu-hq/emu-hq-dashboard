@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EMU HQ TERMINAL</title>
-  <link rel="stylesheet" href="style.css?v=20260521-compact-1" />
+  <link rel="stylesheet" href="style.css?v=20260522-dashboard-1" />
 </head>
 
 <body>
@@ -53,7 +53,6 @@
             <button class="link-btn" onclick="showPage('playerView', this)">&gt; PLAYER VIEW</button>
             <button class="link-btn" onclick="showPage('factionScout', this)">&gt; FACTION SCOUT</button>
             <button class="link-btn" onclick="showPage('activeWars', this)">&gt; ACTIVE WARS</button>
-            <button class="link-btn" onclick="showPage('jobpoints', this)">&gt; JOB POINTS</button>
             <button class="link-btn" onclick="showPage('settings', this)">&gt; SETTINGS</button>
           </div>
         </section>
@@ -103,17 +102,25 @@
 
               <div class="stats-grid">
                 <div class="stat"><span>LEVEL</span><strong id="playerLevel">-</strong></div>
-                <div class="stat"><span>AGE</span><strong id="playerAge">-</strong></div>
+                <div class="stat"><span>AGE</span><strong id="playerAge">-</strong><small id="playerAgeDays">- days</small></div>
                 <div class="stat"><span>LVL/DAY</span><strong id="levelDay">-</strong></div>
                 <div class="stat"><span>FRENEMIES</span><strong id="frenemiesValue">+0 / 0</strong></div>
                 <div class="stat"><span>HONOR</span><strong id="honorValue">-</strong></div>
                 <div class="stat"><span>AWARDS</span><strong id="awardsValue">-</strong></div>
                 <div class="stat"><span>KARMA</span><strong id="karmaValue">-</strong></div>
                 <div class="stat"><span>FORUM</span><strong id="forumValue">-</strong></div>
+                <div class="stat"><span>FACTION</span><strong id="playerFactionValue">-</strong></div>
+                <div class="stat"><span>SPOUSE</span><strong id="spouseValue">-</strong></div>
+                <div class="stat"><span>PROPERTY</span><strong id="propertyValue">-</strong></div>
               </div>
 
               <div class="connection-status">LOCKED CONNECTION SECURE</div>
             </div>
+          </section>
+
+          <section class="panel dashboard-panel">
+            <div class="panel-title">JOB POINTS</div>
+            <div class="panel-content" id="jobPointsPanel">Loading from your Torn API...</div>
           </section>
         </div>
 
@@ -143,8 +150,8 @@
                   </tbody>
                 </table>
               </div>
-              <div class="sub-title">HOSPITAL DETAILS</div>
-              <div class="intel-list" id="hospitalMembers">Loading...</div>
+              <div class="sub-title">FLIGHT TRACKER</div>
+              <div class="intel-list" id="factionFlights">Loading...</div>
             </div>
           </section>
         </div>
@@ -220,8 +227,8 @@
                 <label>LIMIT<input id="targetLimit" type="number" min="1" max="50" value="20" /></label>
                 <label>INACTIVE
                   <select id="targetInactive">
-                    <option value="1">TRUE</option>
-                    <option value="0">FALSE</option>
+                    <option value="1">200+ DAYS</option>
+                    <option value="0">ACTIVE / ANY</option>
                   </select>
                 </label>
                 <label>FACTIONLESS
@@ -283,6 +290,7 @@
               </div>
               <div class="tool-actions">
                 <button type="button" class="save-btn" onclick="searchRecruiter()">SEARCH RECRUITS</button>
+                <button type="button" class="save-btn" onclick="openExternalTool('https://www.torn.com/page.php?sid=UserList')">OPEN TORN SEARCH</button>
                 <button type="button" class="save-btn" onclick="copyRecruitIds()">COPY IDS</button>
                 <span id="recruiterStatus" class="muted">Ready.</span>
               </div>
@@ -307,49 +315,13 @@
           </section>
         </div>
 
-        <div id="jobpoints" class="page">
-          <section class="panel">
-            <div class="panel-title">JOB POINTS</div>
-            <div class="panel-content">
-              <div class="data-table-wrap">
-                <table class="data-table compact-table">
-                  <thead><tr><th>Private Companies</th><th>Points</th></tr></thead>
-                  <tbody>
-                    <tr><td>Adult Novelties</td><td>9</td></tr>
-                    <tr><td>Television Network</td><td>190</td></tr>
-                    <tr><td>Property Broker</td><td>150</td></tr>
-                    <tr><td>Music Store</td><td>225</td></tr>
-                    <tr><td>Restaurant</td><td>30</td></tr>
-                    <tr><td>Ladies Strip Club</td><td>60</td></tr>
-                    <tr><td>Private Security Firm</td><td>237</td></tr>
-                    <tr><td>Mining Corporation</td><td>352</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="data-table-wrap">
-                <table class="data-table compact-table">
-                  <thead><tr><th>Torn City Jobs</th><th>Points</th></tr></thead>
-                  <tbody>
-                    <tr><td>Medical</td><td>3</td></tr>
-                    <tr><td>Casino</td><td>5</td></tr>
-                    <tr><td>Education</td><td>5</td></tr>
-                    <tr><td>Law</td><td>5</td></tr>
-                    <tr><td>Grocer</td><td>5</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        </div>
-
         <div id="playerView" class="page">
           <section class="panel">
             <div class="panel-title">PLAYER VIEW</div>
             <div class="panel-content">
               <p class="scan-line">PROFILE + ESTIMATES VIA EMU BS TRACKER</p>
               <div class="tool-grid tool-grid-compact">
-                <label>PLAYER ID<input id="playerLookupId" type="text" placeholder="1844049" /></label>
-                <label>HISTORY LIMIT<input id="playerHistoryLimit" type="number" min="1" max="100" value="25" /></label>
+                <label>PLAYER ID OR URL<input id="playerLookupId" type="text" placeholder="1844049 or torn.com/profiles.php?XID=1844049" /></label>
               </div>
               <div class="tool-actions">
                 <button type="button" class="save-btn" data-tool-action="load-player" onclick="loadPlayerView()">LOAD PLAYER</button>
@@ -359,17 +331,10 @@
               </div>
               <div id="playerDashboardCard"></div>
               <div id="playerViewSummary" class="tool-cards"></div>
+              <div id="playerUsageSummary" class="tool-cards"></div>
 
               <div class="sub-title">HISTORY WITH YOU / FACTION</div>
               <div id="playerRelationPanel" class="intel-list">No player loaded.</div>
-
-              <div class="sub-title">ESTIMATE HISTORY</div>
-              <div class="data-table-wrap">
-                <table class="data-table">
-                  <thead><tr><th>Time</th><th>Estimate</th><th>BSS Public</th><th>Source</th></tr></thead>
-                  <tbody id="playerHistoryTable"><tr><td colspan="4">No player loaded.</td></tr></tbody>
-                </table>
-              </div>
 
               <div class="sub-title">FLIGHT TRACKER</div>
               <div class="data-table-wrap">
@@ -488,6 +453,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=20260521-compact-1"></script>
+  <script src="app.js?v=20260522-dashboard-1"></script>
 </body>
 </html>
