@@ -385,46 +385,6 @@ select{
   padding:10px;
 }
 
-.tool-grid input[type="range"]{
-  min-width:0;
-  width:100%;
-  padding:0;
-  accent-color:#00ff66;
-}
-
-.range-tool{
-  grid-column:span 2;
-  gap:6px;
-  min-width:0;
-}
-
-.range-line{
-  display:grid;
-  grid-template-columns:minmax(140px,1fr) 78px 58px;
-  align-items:center;
-  gap:10px;
-  min-height:38px;
-  min-width:0;
-}
-
-.range-line strong{
-  min-width:54px;
-  color:#c9ffdd;
-  text-align:right;
-}
-
-.range-line .ff-number{
-  width:100%;
-  margin:0;
-  padding:8px;
-}
-
-.range-tool small{
-  color:#c9ffdd;
-  opacity:.84;
-  text-shadow:none;
-}
-
 .filter-toggle{
   display:flex;
   align-items:center;
