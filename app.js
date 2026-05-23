@@ -391,6 +391,23 @@ async function loadUserBattleStatsData(timestamp) {
   }
 }
 
+async function loadHistoricalBattleStatsData(timestamp) {
+  try {
+    const data = await getData(tornUrl(2, "/user/personalstats", {
+      cat: "battle_stats",
+      timestamp,
+      key: getTornApiKey()
+    }));
+    const stats = normalizePersonalBattleStats(data);
+    if (stats.total > 0 || stats.strength > 0 || stats.defense > 0 || stats.speed > 0 || stats.dexterity > 0) {
+      return { battlestats: stats };
+    }
+  } catch (err) {
+  }
+
+  return loadUserBattleStatsData(timestamp);
+}
+
 async function loadUserWorkStatsData() {
   try {
     return await getData(tornUrl(2, "/user", { selections: "workstats", key: getTornApiKey() }));
@@ -776,7 +793,7 @@ async function calculateBattleStatGains(days, label) {
     const timestamp = Math.floor(Date.now() / 1000) - Math.round(Number(days) * 86400);
     const [currentData, previousData] = await Promise.all([
       loadUserBattleStatsData(),
-      loadUserBattleStatsData(timestamp)
+      loadHistoricalBattleStatsData(timestamp)
     ]);
     const current = normalizeBattleStats(currentData);
     const previous = normalizeBattleStats(previousData);
@@ -794,6 +811,9 @@ async function calculateBattleStatGains(days, label) {
     const gainSentence = gainedRows.length
       ? `You have gained ${formatGainList(gainedRows)} over the period of ${label}. You have gained a total of ${formatNumber(totalGain)} stats.`
       : `No battle stat gains were detected over the period of ${label}.`;
+    const diagnosticRow = gainedRows.length
+      ? ""
+      : `<tr><td>Current total / previous total</td><td>${escapeHtml(`${formatNumber(current.total)} / ${formatNumber(previous.total)}`)}</td></tr>`;
     const gainRowsHtml = gainedRows.length
       ? gainedRows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(formatNumber(row.gain))}</td></tr>`).join("")
       : `<tr><td colspan="2" class="muted">No gains detected for this period.</td></tr>`;
@@ -805,6 +825,7 @@ async function calculateBattleStatGains(days, label) {
           <tbody>
             ${gainRowsHtml}
             ${gainedRows.length ? `<tr><td>Total gained</td><td>${escapeHtml(formatNumber(totalGain))}</td></tr>` : ""}
+            ${diagnosticRow}
           </tbody>
         </table>
       </div>
@@ -866,6 +887,17 @@ function normalizeBattleStats(data) {
   const score = Math.floor(Math.sqrt(strength) + Math.sqrt(defense) + Math.sqrt(speed) + Math.sqrt(dexterity));
 
   return { strength, defense, speed, dexterity, total, effectiveStrength, effectiveDefense, effectiveSpeed, effectiveDexterity, effectiveTotal, score };
+}
+
+function normalizePersonalBattleStats(data) {
+  const stats = normalizeHistoricStats(data);
+  const root = data?.personalstats?.battle_stats || data?.battle_stats || data?.personalstats || stats || {};
+  const strength = readStatNumber(root, ["strength", "str"], Number(stats.strength || 0));
+  const defense = readStatNumber(root, ["defense", "defence", "def"], Number(stats.defense || stats.defence || 0));
+  const speed = readStatNumber(root, ["speed", "spd"], Number(stats.speed || 0));
+  const dexterity = readStatNumber(root, ["dexterity", "dex"], Number(stats.dexterity || 0));
+  const total = readStatNumber(root, ["total", "total_battlestats"], strength + defense + speed + dexterity);
+  return { strength, defense, speed, dexterity, total };
 }
 
 function readEffectiveStat(root, stat) {
