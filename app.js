@@ -330,6 +330,48 @@ function getOwnHistoricStats(timestamp) {
   })).then(normalizeHistoricStats);
 }
 
+async function loadOwnDashboardStats() {
+  const [battleResult, workResult, skillsResult] = await Promise.allSettled([
+    loadUserBattleStatsData(),
+    loadUserWorkStatsData(),
+    loadUserSkillsData()
+  ]);
+
+  return {
+    battle: battleResult.status === "fulfilled" ? battleResult.value : null,
+    work: workResult.status === "fulfilled" ? workResult.value : null,
+    skills: skillsResult.status === "fulfilled" ? skillsResult.value : null
+  };
+}
+
+async function loadUserBattleStatsData() {
+  try {
+    return await getData(tornUrl(2, "/user/battlestats", { key: getTornApiKey() }));
+  } catch (err) {
+    return getData(tornUrl(1, "/user/", { selections: "battlestats", key: getTornApiKey() }));
+  }
+}
+
+async function loadUserWorkStatsData() {
+  try {
+    return await getData(tornUrl(2, "/user/workstats", { key: getTornApiKey() }));
+  } catch (err) {
+    return getData(tornUrl(1, "/user/", { selections: "workstats", key: getTornApiKey() }));
+  }
+}
+
+async function loadUserSkillsData() {
+  try {
+    return await getData(tornUrl(2, "/user/skills", { key: getTornApiKey() }));
+  } catch (err) {
+    try {
+      return await getData(tornUrl(1, "/user/", { selections: "skills", key: getTornApiKey() }));
+    } catch (fallbackErr) {
+      return null;
+    }
+  }
+}
+
 async function loadOwnBattleStats() {
   if (!hasTornApiKey() || ownBattleStats) return ownBattleStats;
 
@@ -361,10 +403,11 @@ async function loadFactionData() {
 }
 
 async function loadDashboardExtras(sequence) {
-  const [honorsResult, jobPointsResult, usageResult] = await Promise.allSettled([
+  const [honorsResult, jobPointsResult, usageResult, statsResult] = await Promise.allSettled([
     loadUserHonorsData(),
     loadUserJobPointsData(),
-    loadOwnUsageInsights()
+    loadOwnUsageInsights(),
+    loadOwnDashboardStats()
   ]);
 
   if (sequence !== loadSequence) return;
@@ -383,6 +426,13 @@ async function loadDashboardExtras(sequence) {
     renderDashboardUsage(usageResult.value);
   } else {
     setHtml("dashboardUsagePanel", emptyMessage("Xanax and refill averages unavailable for this key."));
+  }
+
+  if (statsResult.status === "fulfilled") {
+    renderDashboardStats(statsResult.value);
+  } else {
+    setHtml("dashboardBattleStatsPanel", emptyMessage("Battle stats unavailable for this key."));
+    setHtml("dashboardSkillsPanel", emptyMessage("Work stats and skills unavailable for this key."));
   }
 }
 
@@ -429,11 +479,11 @@ function renderNoKeyState() {
   setHtml("hospitalTable", emptyTableRow("Enter API key in Settings.", 6));
   setHtml("warOverview", emptyMessage("Enter API key in Settings."));
   setHtml("enemyHospitalList", emptyMessage("Enter API key in Settings."));
-  setHtml("warTargetsTable", emptyTableRow("Enter API key in Settings.", 6));
+  setHtml("warTargetsTable", emptyTableRow("Enter API key in Settings.", 7));
   setHtml("recentAttacks", emptyMessage("Enter API key in Settings."));
   setHtml("quickStrikeTargets", emptyMessage("Enter API key in Settings."));
   setHtml("chainPanel", emptyMessage("Enter API key in Settings."));
-  setHtml("targetResults", emptyTableRow("Enter API key in Settings.", 6));
+  setHtml("targetResults", emptyTableRow("Enter API key in Settings.", 7));
   setHtml("recruiterResults", emptyTableRow("Enter API key in Settings.", 6));
   setHtml("playerDashboardCard", "");
   setHtml("playerViewSummary", "");
@@ -442,12 +492,14 @@ function renderNoKeyState() {
   setHtml("playerFlightsTable", emptyTableRow("Enter API key in Settings.", 5));
   setHtml("factionScoutSummary", "");
   setHtml("factionActivitySummary", "");
-  setHtml("factionScoutMembers", emptyTableRow("Enter API key in Settings.", 7));
+  setHtml("factionScoutMembers", emptyTableRow("Enter API key in Settings.", 8));
   setHtml("activeWarsTable", emptyTableRow("Enter API key in Settings.", 6));
   setHtml("activeTerritoryTable", emptyTableRow("Enter API key in Settings.", 5));
   setHtml("liveChainsTable", emptyTableRow("Enter API key in Settings.", 5));
   setHtml("jobPointsPanel", emptyMessage("Enter API key in Settings."));
   setHtml("dashboardUsagePanel", emptyMessage("Enter API key in Settings."));
+  setHtml("dashboardBattleStatsPanel", emptyMessage("Enter API key in Settings."));
+  setHtml("dashboardSkillsPanel", emptyMessage("Enter API key in Settings."));
 }
 
 function loadUser(user, honorsData) {
@@ -616,6 +668,122 @@ function renderDashboardUsage(usage) {
     ["REFILLS 30D", formatUsageRate(usage.monthRefills, 30)],
     ["REFILLS 1Y", formatUsageRate(usage.yearRefills, 365)]
   ]);
+}
+
+function renderDashboardStats(data) {
+  const battle = normalizeBattleStats(data.battle);
+  const work = normalizeWorkStats(data.work);
+  const skills = normalizeSkillStats(data.skills);
+
+  setHtml("dashboardBattleStatsPanel", `
+    <div class="jobpoints-grid">
+      ${statBlockTable("BATTLE STATS", [
+        ["Strength", battle.strength],
+        ["Defense", battle.defense],
+        ["Speed", battle.speed],
+        ["Dexterity", battle.dexterity],
+        ["Total", battle.total],
+        ["Efficient Score", battle.score]
+      ])}
+      ${statBlockTable("EFFECTIVE STATS", [
+        ["Strength", battle.effectiveStrength],
+        ["Defense", battle.effectiveDefense],
+        ["Speed", battle.effectiveSpeed],
+        ["Dexterity", battle.effectiveDexterity],
+        ["Total", battle.effectiveTotal]
+      ])}
+    </div>
+  `);
+
+  setHtml("dashboardSkillsPanel", `
+    <div class="jobpoints-grid">
+      ${statBlockTable("WORK STATS", [
+        ["Manual Labor", work.manual],
+        ["Intelligence", work.intelligence],
+        ["Endurance", work.endurance]
+      ])}
+      ${statBlockTable("SKILLS / CRIMES", skills.length ? skills : [["Unavailable", "-"]])}
+    </div>
+  `);
+}
+
+function statBlockTable(title, rows) {
+  return `
+    <div class="data-table-wrap">
+      <table class="data-table compact-table">
+        <thead><tr><th>${escapeHtml(title)}</th><th>Value</th></tr></thead>
+        <tbody>${rows.map(([name, value]) => `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(formatStatValue(value))}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function normalizeBattleStats(data) {
+  const root = data?.battlestats || data?.battle_stats || data || {};
+  const strength = readStatNumber(root, ["strength", "str"]);
+  const defense = readStatNumber(root, ["defense", "defence", "def"]);
+  const speed = readStatNumber(root, ["speed", "spd"]);
+  const dexterity = readStatNumber(root, ["dexterity", "dex"]);
+  const effectiveStrength = readStatNumber(root, ["effective_strength", "effectiveStrength", "strength_effective"], strength);
+  const effectiveDefense = readStatNumber(root, ["effective_defense", "effective_defence", "effectiveDefense", "defense_effective"], defense);
+  const effectiveSpeed = readStatNumber(root, ["effective_speed", "effectiveSpeed", "speed_effective"], speed);
+  const effectiveDexterity = readStatNumber(root, ["effective_dexterity", "effectiveDexterity", "dexterity_effective"], dexterity);
+  const total = readStatNumber(root, ["total", "total_battlestats"], strength + defense + speed + dexterity);
+  const effectiveTotal = readStatNumber(root, ["effective_total", "effectiveTotal"], effectiveStrength + effectiveDefense + effectiveSpeed + effectiveDexterity);
+  const score = Math.floor(Math.sqrt(strength) + Math.sqrt(defense) + Math.sqrt(speed) + Math.sqrt(dexterity));
+
+  return { strength, defense, speed, dexterity, total, effectiveStrength, effectiveDefense, effectiveSpeed, effectiveDexterity, effectiveTotal, score };
+}
+
+function normalizeWorkStats(data) {
+  const root = data?.workstats || data?.work_stats || data || {};
+  return {
+    manual: readStatNumber(root, ["manual_labor", "manual_labour", "manual", "labor", "labour"]),
+    intelligence: readStatNumber(root, ["intelligence", "intel"]),
+    endurance: readStatNumber(root, ["endurance", "end"])
+  };
+}
+
+function normalizeSkillStats(data) {
+  const root = data?.skills || data?.crime_skills || data || {};
+  const rows = [];
+
+  function walk(prefix, value) {
+    if (rows.length >= 18 || value === null || value === undefined) return;
+    if (typeof value === "number" || typeof value === "string") {
+      if (Number.isFinite(Number(value)) || String(value).trim()) rows.push([titleCase(prefix), value]);
+      return;
+    }
+    if (typeof value !== "object") return;
+    if ("level" in value || "skill" in value || "value" in value) {
+      rows.push([titleCase(prefix), value.level ?? value.skill ?? value.value]);
+      return;
+    }
+    Object.entries(value).forEach(([key, item]) => walk(key, item));
+  }
+
+  walk("skills", root);
+  return rows.filter(([name]) => name && name !== "Skills");
+}
+
+function readStatNumber(source, keys, fallback = 0) {
+  for (const key of keys) {
+    const value = source?.[key];
+    if (typeof value === "object" && value !== null) {
+      const nested = value.value ?? value.amount ?? value.total ?? value.current;
+      if (Number.isFinite(Number(nested))) return Number(nested);
+    }
+    if (Number.isFinite(Number(value))) return Number(value);
+  }
+  return Number(fallback) || 0;
+}
+
+function formatStatValue(value) {
+  if (Number.isFinite(Number(value))) {
+    const number = Number(value);
+    return Math.abs(number) >= 1000 ? formatNumber(number) : String(Number.isInteger(number) ? number : number.toFixed(2));
+  }
+  return value ?? "-";
 }
 
 function formatRankPosition(faction) {
@@ -1086,7 +1254,7 @@ function handleWars(data, factionId) {
     setText("warLastChecked", new Date().toLocaleTimeString());
     setHtml("warOverview", emptyMessage("No ranked war found."));
     setHtml("enemyHospitalList", emptyMessage("No enemy faction selected."));
-    setHtml("warTargetsTable", emptyTableRow("No enemy faction selected.", 6));
+    setHtml("warTargetsTable", emptyTableRow("No enemy faction selected.", 7));
     return;
   }
 
@@ -1110,7 +1278,7 @@ function handleWars(data, factionId) {
     loadEnemyFaction(activeEnemyId);
   } else {
     setHtml("enemyHospitalList", emptyMessage("No active or matched enemy faction."));
-    setHtml("warTargetsTable", emptyTableRow("No active or matched enemy faction.", 6));
+    setHtml("warTargetsTable", emptyTableRow("No active or matched enemy faction.", 7));
   }
 }
 
@@ -1202,7 +1370,7 @@ async function loadEnemyFaction(enemyId) {
     enrichEnemyStats(members);
   } catch (err) {
     setHtml("enemyHospitalList", emptyMessage(`Enemy status unavailable: ${err.message}`));
-    setHtml("warTargetsTable", emptyTableRow(`Enemy status unavailable: ${err.message}`, 6));
+    setHtml("warTargetsTable", emptyTableRow(`Enemy status unavailable: ${err.message}`, 7));
   }
 }
 
@@ -1260,7 +1428,7 @@ function renderWarTargetTable(members) {
     "warTargetsTable",
     rows
       ? rows
-      : emptyTableRow(getWarViewEmptyMessage(), 6)
+      : emptyTableRow(getWarViewEmptyMessage(), 7)
   );
 }
 
@@ -1392,11 +1560,13 @@ function warTargetRow(member) {
   const details = formatTargetStatusDetails(member, status);
   const attackable = !isHospital(member) && !isTravelling(member);
   const flightLine = attackable ? formatAttackableFlightLine(member) : "";
+  const score = getSmartTargetScore(member);
 
   return `
     <tr>
       <td>${tableMemberLink(member)}${flightLine}</td>
       <td>${escapeHtml(member.level ?? "-")}</td>
+      <td>${smartScoreBadge(score)}</td>
       <td>${stats !== "-" ? `<span class="stat-pill">${escapeHtml(stats)}</span>` : `<span class="muted">-</span>`}</td>
       <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span>${details}</td>
       <td>${targetEtaHtml(member)}</td>
@@ -1586,13 +1756,14 @@ function medOutStrikeRow(member) {
 
 function quickStrikeRow(member, detail, extraHtml = "") {
   const estimate = formatMemberEstimate(member);
+  const score = getSmartTargetScore(member);
   return `
     <div class="intel-row strike-row">
       <span>
         ${tableMemberLink(member)}
         <small>${escapeHtml(detail)}</small>
         ${extraHtml}
-        <small>BSP: ${escapeHtml(estimate || "-")}</small>
+        <small>BSP: ${escapeHtml(estimate || "-")} | Score: ${escapeHtml(score.label)}</small>
       </span>
       ${attackActionLink(member)}
     </div>
@@ -1855,7 +2026,7 @@ async function searchTargets() {
   } catch (err) {
     targetResultPool = [];
     latestTargetResults = [];
-    setHtml("targetResults", emptyTableRow(err.message || "Target lookup failed.", 6));
+    setHtml("targetResults", emptyTableRow(err.message || "Target lookup failed.", 7));
     updateTargetPager();
     setText("targetStatus", err.message || "Target lookup failed.");
   }
@@ -2194,7 +2365,7 @@ function renderTargetResults(targets) {
     "targetResults",
     targets.length
       ? targets.map(target => targetRow(target)).join("")
-      : emptyTableRow("No targets found.", 6)
+      : emptyTableRow("No targets found.", 7)
   );
 }
 
@@ -2224,12 +2395,14 @@ function targetRow(target) {
   const stats = target.bsp?.tbs_human || target.bs_estimate_human || compactNumber(target.bs_estimate || target.bss_public);
   const fairFight = target.bsp?.fair_fight ?? target.fair_fight ?? target.ff ?? "-";
   const lastAction = formatTargetLastAction(target);
+  const score = getSmartTargetScore(target);
 
   return `
     <tr>
       <td>${id ? `<a href="${profileUrl(id)}" target="_blank" rel="noopener">${escapeHtml(name)} [${escapeHtml(id)}]</a>` : escapeHtml(name)}</td>
       <td>${id ? `<a class="hit-link danger-hit" href="${attackUrl(id)}" target="_blank" rel="noopener">ATTACK</a>` : `<span class="muted">-</span>`}</td>
       <td>${escapeHtml(target.level ?? "-")}</td>
+      <td>${smartScoreBadge(score)}</td>
       <td>${escapeHtml(fairFight)}</td>
       <td>${stats !== "-" ? `<span class="stat-pill">${escapeHtml(stats)}</span>` : `<span class="muted">-</span>`}</td>
       <td>${escapeHtml(lastAction)}</td>
@@ -2349,6 +2522,53 @@ async function loadRecruiterCandidates() {
 
 function getRecruiterEstimateValue(target) {
   return parseNumberish(target.bsp?.tbs || target.bs_estimate || target.bss_public);
+}
+
+function getSmartTargetScore(target) {
+  let points = 0;
+  const ff = Number(target.bsp?.fair_fight ?? target.emubs?.fair_fight ?? target.fair_fight ?? target.ff);
+  const stats = getSmartEstimateValue(target);
+  const level = Number(target.level || 0);
+  const age = getLastActionAgeSeconds(target);
+
+  if (Number.isFinite(ff)) {
+    if (ff <= 1.25) points += 35;
+    else if (ff <= 2) points += 25;
+    else if (ff <= 3) points += 15;
+    else points -= 15;
+  }
+
+  if (stats > 0) {
+    if (stats < 1e6) points += 25;
+    else if (stats < 50e6) points += 18;
+    else if (stats < 500e6) points += 10;
+    else if (stats > 5e9) points -= 12;
+  }
+
+  if (level >= 80) points += 8;
+  if (age !== null) {
+    if (age <= 900) points += 12;
+    else if (age <= 3600) points += 8;
+    else if (age >= 200 * 86400) points += 6;
+  }
+
+  if (isHospital(target)) points -= 25;
+  if (isTravelling(target)) points -= 15;
+  if (target.retalUntil) points += 35;
+
+  if (points >= 65) return { label: "PRIORITY", className: "danger" };
+  if (points >= 45) return { label: "GOOD HIT", className: "good" };
+  if (points >= 25) return { label: "SAFE", className: "status-okay" };
+  if (points >= 5) return { label: "RISKY", className: "warning" };
+  return { label: "IGNORE", className: "muted" };
+}
+
+function getSmartEstimateValue(target) {
+  return parseNumberish(target.bsp?.tbs || target.emubs?.bs_estimate || target.bs_estimate || target.emubs?.bss_public || target.bss_public);
+}
+
+function smartScoreBadge(score) {
+  return `<span class="status-pill ${score.className}">${escapeHtml(score.label)}</span>`;
 }
 
 function getRecruiterSourceFairFightParams(minStats, maxStats) {
@@ -2889,7 +3109,7 @@ async function loadFactionScout() {
   setText("factionScoutStatus", "Loading faction...");
   setHtml("factionScoutSummary", "");
   setHtml("factionActivitySummary", "");
-  setHtml("factionScoutMembers", emptyTableRow("Loading members...", 7));
+  setHtml("factionScoutMembers", emptyTableRow("Loading members...", 8));
 
   try {
     const data = await loadFactionScoutData(factionId);
@@ -2904,7 +3124,7 @@ async function loadFactionScout() {
     setText("factionScoutStatus", `${enriched.length} members loaded.`);
   } catch (err) {
     setText("factionScoutStatus", err.message || "Faction scout failed.");
-    setHtml("factionScoutMembers", emptyTableRow(err.message || "Faction scout failed.", 7));
+    setHtml("factionScoutMembers", emptyTableRow(err.message || "Faction scout failed.", 8));
   }
 }
 
@@ -3018,6 +3238,13 @@ function renderFactionScoutSummary(factionId, faction, members) {
     .map(getMemberEstimateValue)
     .filter(value => value > 0);
   const totalKnown = knownStats.reduce((sum, value) => sum + value, 0);
+  const sortedKnown = [...members]
+    .filter(member => getMemberEstimateValue(member) > 0)
+    .sort((a, b) => getMemberEstimateValue(a) - getMemberEstimateValue(b));
+  const weakest = sortedKnown[0];
+  const strongest = sortedKnown[sortedKnown.length - 1];
+  const attackable = members.filter(member => !isHospital(member) && !isTravelling(member)).length;
+  const priority = members.filter(member => getSmartTargetScore(member).label === "PRIORITY").length;
 
   renderToolCards("factionScoutSummary", [
     ["FACTION", `${faction.name || `Faction ${factionId}`} [${factionId}]`],
@@ -3025,7 +3252,11 @@ function renderFactionScoutSummary(factionId, faction, members) {
     ["RESPECT", formatNumber(faction.respect)],
     ["MEMBERS LOADED", members.length],
     ["KNOWN TOTAL", compactNumber(totalKnown)],
-    ["AVG KNOWN", knownStats.length ? compactNumber(totalKnown / knownStats.length) : "-"]
+    ["AVG KNOWN", knownStats.length ? compactNumber(totalKnown / knownStats.length) : "-"],
+    ["WEAKEST", weakest ? `${weakest.name || getPlayerId(weakest)} - ${formatMemberEstimate(weakest)}` : "-"],
+    ["STRONGEST", strongest ? `${strongest.name || getPlayerId(strongest)} - ${formatMemberEstimate(strongest)}` : "-"],
+    ["ATTACKABLE", attackable],
+    ["PRIORITY HITS", priority]
   ]);
 }
 
@@ -3065,10 +3296,12 @@ function renderFactionScoutMembers(members) {
         const action = getLastAction(member);
         const stats = formatMemberEstimate(member);
         const fairFight = member.emubs?.fair_fight ?? member.bsp?.fair_fight ?? "-";
+        const score = getSmartTargetScore(member);
         return `
           <tr>
             <td>${tableMemberLink(member)}</td>
             <td>${escapeHtml(member.level ?? "-")}</td>
+            <td>${smartScoreBadge(score)}</td>
             <td>${escapeHtml(status.state || status.description || action.status || "-")}</td>
             <td>${escapeHtml(fairFight)}</td>
             <td>${stats !== "-" ? `<span class="stat-pill">${escapeHtml(stats)}</span>` : `<span class="muted">-</span>`}</td>
@@ -3077,7 +3310,7 @@ function renderFactionScoutMembers(members) {
           </tr>
         `;
       }).join("")
-      : emptyTableRow("No faction members loaded.", 7)
+      : emptyTableRow("No faction members loaded.", 8)
   );
 }
 
