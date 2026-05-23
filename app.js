@@ -12,6 +12,7 @@ const TARGET_BATCH_ATTEMPT_LIMIT = 30;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const BATTLE_HISTORY_KEY = "emu.battleStatHistory.v1";
 const MED_OUT_WINDOW_MS = 15 * 60 * 1000;
 const CRIME_SKILL_NAMES = {
   0: "Search for Cash",
@@ -748,6 +749,7 @@ function renderDashboardUsage(usage) {
 function renderDashboardStats(data) {
   const battle = normalizeBattleStats(data.battle);
   const hasBattle = battle.total > 0 || battle.strength > 0 || battle.defense > 0 || battle.speed > 0 || battle.dexterity > 0;
+  if (hasBattle) storeBattleStatsSnapshot(battle);
 
   setHtml("dashboardBattleStatsPanel", hasBattle
     ? `
@@ -796,7 +798,23 @@ async function calculateBattleStatGains(days, label) {
       loadHistoricalBattleStatsData(timestamp)
     ]);
     const current = normalizeBattleStats(currentData);
-    const previous = normalizeBattleStats(previousData);
+    let previous = normalizeBattleStats(previousData);
+    let sourceNote = "Torn historical API";
+    let noHistory = false;
+
+    if (previous.total === current.total) {
+      const localPrevious = getBattleStatsSnapshotBefore(timestamp);
+      if (localPrevious && localPrevious.total !== current.total) {
+        previous = localPrevious;
+        sourceNote = `EMU local snapshot from ${formatDateTime(localPrevious.timestamp)}`;
+      } else {
+        noHistory = true;
+        sourceNote = localPrevious
+          ? `EMU local snapshot from ${formatDateTime(localPrevious.timestamp)} matched current stats`
+          : "Torn returned current stats for the old timestamp and EMU has no older local snapshot yet";
+      }
+    }
+
     const rows = [
       ["strength", "Strength"],
       ["defense", "Defense"],
@@ -810,7 +828,9 @@ async function calculateBattleStatGains(days, label) {
     const gainedRows = rows.filter(row => row.gain > 0);
     const gainSentence = gainedRows.length
       ? `You have gained ${formatGainList(gainedRows)} over the period of ${label}. You have gained a total of ${formatNumber(totalGain)} stats.`
-      : `No battle stat gains were detected over the period of ${label}.`;
+      : noHistory
+        ? `EMU has started tracking your battle stats now. Torn did not return an older battle stat snapshot for ${label}, so gains will show once EMU has saved enough history.`
+        : `No battle stat gains were detected over the period of ${label}.`;
     const diagnosticRow = gainedRows.length
       ? ""
       : `<tr><td>Current total / previous total</td><td>${escapeHtml(`${formatNumber(current.total)} / ${formatNumber(previous.total)}`)}</td></tr>`;
@@ -826,6 +846,7 @@ async function calculateBattleStatGains(days, label) {
             ${gainRowsHtml}
             ${gainedRows.length ? `<tr><td>Total gained</td><td>${escapeHtml(formatNumber(totalGain))}</td></tr>` : ""}
             ${diagnosticRow}
+            <tr><td>Source</td><td>${escapeHtml(sourceNote)}</td></tr>
           </tbody>
         </table>
       </div>
@@ -841,6 +862,58 @@ function formatGainList(rows) {
   if (parts.length <= 1) return parts[0] || "0 stats";
   if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+function storeBattleStatsSnapshot(battle) {
+  if (!battle?.total) return;
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const history = getBattleStatsHistory();
+    const latest = history[history.length - 1];
+    const snapshot = {
+      timestamp: now,
+      strength: Number(battle.strength || 0),
+      defense: Number(battle.defense || 0),
+      speed: Number(battle.speed || 0),
+      dexterity: Number(battle.dexterity || 0),
+      total: Number(battle.total || 0)
+    };
+
+    if (
+      latest &&
+      now - Number(latest.timestamp || 0) < 15 * 60 &&
+      Number(latest.total || 0) === snapshot.total
+    ) {
+      return;
+    }
+
+    history.push(snapshot);
+    const cutoff = now - 370 * 86400;
+    const trimmed = history
+      .filter(item => Number(item.timestamp || 0) >= cutoff)
+      .slice(-1000);
+    localStorage.setItem(BATTLE_HISTORY_KEY, JSON.stringify(trimmed));
+  } catch (err) {
+  }
+}
+
+function getBattleStatsHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BATTLE_HISTORY_KEY) || "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter(item => item && Number.isFinite(Number(item.timestamp))).sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
+      : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function getBattleStatsSnapshotBefore(timestamp) {
+  const target = Number(timestamp);
+  if (!Number.isFinite(target)) return null;
+  const history = getBattleStatsHistory().filter(item => Number(item.timestamp) <= target);
+  return history.length ? history[history.length - 1] : null;
 }
 
 function renderDashboardSkills(data) {
