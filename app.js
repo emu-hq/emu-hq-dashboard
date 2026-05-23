@@ -296,10 +296,10 @@ async function loadAllData() {
 
 async function loadUserData() {
   try {
-    return await getData(tornUrl(2, "/user", { selections: "profile,bars", key: getTornApiKey() }));
+    return await getData(tornUrl(2, "/user", { selections: "profile,bars,networth", key: getTornApiKey() }));
   } catch (err) {
     if (isRateLimitError(err)) throw err;
-    return getData(tornUrl(1, "/user/", { selections: "profile,bars", key: getTornApiKey() }));
+    return getData(tornUrl(1, "/user/", { selections: "profile,bars,networth", key: getTornApiKey() }));
   }
 }
 
@@ -560,7 +560,7 @@ function loadUser(user, honorsData) {
     : "-";
 
   setText("levelDay", lvlDay);
-  setText("networthValue", formatMoney(profile.networth ?? user.networth ?? profile.net_worth ?? user.net_worth));
+  setText("networthValue", formatMoney(extractNetworthValue(user)));
   setText("frenemiesValue", `+${profile.friends ?? user.friends ?? 0} / ${profile.enemies ?? user.enemies ?? 0}`);
   setText("honorValue", formatNumber(legacyProfile.honor_id ?? legacyProfile.honor ?? profile.honor_id ?? user.honor_id ?? profile.honor ?? user.honor ?? extractHonorCount(honorsData) ?? profile.honors ?? user.honors ?? "-"));
   setText("awardsValue", profile.awards ?? user.awards ?? "-");
@@ -3652,6 +3652,22 @@ function formatMoney(value) {
   if (value === undefined || value === null || value === "") return "-";
   const number = Number(value);
   return Number.isFinite(number) ? `$${number.toLocaleString("en-US")}` : String(value);
+}
+
+function extractNetworthValue(data) {
+  const profile = data?.profile || data?.basic || {};
+  const personal = data?.personalstats || profile.personalstats || {};
+  const networth = data?.networth || profile.networth || personal.networth || data?.net_worth || profile.net_worth;
+
+  if (Number.isFinite(Number(networth))) return Number(networth);
+  if (!networth || typeof networth !== "object") return null;
+
+  const preferredKeys = ["total", "networth", "net_worth", "value", "amount"];
+  for (const key of preferredKeys) {
+    if (Number.isFinite(Number(networth[key]))) return Number(networth[key]);
+  }
+
+  return null;
 }
 
 function compactNumber(value) {
