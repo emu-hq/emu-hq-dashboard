@@ -14,6 +14,7 @@ const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const BATTLE_HISTORY_KEY = "emu.battleStatHistory.v1";
 const BATTLE_GAIN_EVENT_CACHE_KEY = "emu.battleGainEvents.v1";
+const BATTLE_GAIN_LOG_TYPES_KEY = "emu.battleGainLogTypes.v1";
 const TORN_LOG_PAGE_LIMIT = 100;
 const MED_OUT_WINDOW_MS = 15 * 60 * 1000;
 let battleGainsScanInFlight = false;
@@ -929,35 +930,68 @@ async function loadBattleStatGainEvents(fromTimestamp) {
 }
 
 async function loadBattleStatGainLogEntries(fromTimestamp, toTimestamp) {
+  const typed = await loadBattleStatGainTypedLogEntries(fromTimestamp, toTimestamp);
+  if (typed.coverage?.count || typed.length) return typed;
+
   const all = [];
   const scanned = [];
-  let to = Number(toTimestamp || Math.floor(Date.now() / 1000));
+  const to = Number(toTimestamp || Math.floor(Date.now() / 1000));
   const from = Math.max(0, Number(fromTimestamp || 0));
   const logRoute = await resolveUserLogRoute(from, to);
 
-  const pageSignatures = new Set();
-
-  for (let page = 0; page < 80; page++) {
-    const data = await loadUserLogPage(logRoute, from, to);
+  for (let page = 0; page < 25; page++) {
+    const offset = page * TORN_LOG_PAGE_LIMIT;
+    const data = await loadUserLogPage(logRoute, from, to, offset);
     const logs = normalizeLogResponse(data)
       .filter(entry => entry.timestamp >= from && entry.timestamp <= to);
     if (!logs.length) break;
     scanned.push(...logs);
 
     const oldest = Math.min(...logs.map(entry => entry.timestamp));
-    const newest = Math.max(...logs.map(entry => entry.timestamp));
-    const signature = `${oldest}:${newest}:${logs.length}`;
-    if (pageSignatures.has(signature)) break;
-    pageSignatures.add(signature);
-
     const gainLogs = logs
       .map(entry => ({ ...entry, gains: parseBattleStatGains(entry) }))
       .filter(entry => entry.gains.length);
     all.push(...gainLogs);
 
-    const nextTo = oldest - 1;
-    if (!Number.isFinite(nextTo) || nextTo >= to || nextTo < from) break;
-    to = nextTo;
+    if (logs.length < TORN_LOG_PAGE_LIMIT || oldest <= from) break;
+  }
+
+  all.coverage = calculateLogCoverage(scanned, fromTimestamp);
+  return all;
+}
+
+async function loadBattleStatGainTypedLogEntries(fromTimestamp, toTimestamp) {
+  const logTypes = await getBattleStatGainLogTypes();
+  const all = [];
+  const scanned = [];
+  const from = Math.max(0, Number(fromTimestamp || 0));
+
+  for (const logType of logTypes.slice(0, 12)) {
+    const to = Number(toTimestamp || Math.floor(Date.now() / 1000));
+
+    for (let page = 0; page < 20; page++) {
+      const offset = page * TORN_LOG_PAGE_LIMIT;
+      const data = await getData(tornUrl(2, "/user/log", {
+        from,
+        to,
+        limit: TORN_LOG_PAGE_LIMIT,
+        offset,
+        log: logType.id,
+        key: getTornApiKey()
+      }));
+      const logs = normalizeLogResponse(data)
+        .filter(entry => entry.timestamp >= from && entry.timestamp <= to);
+      if (!logs.length) break;
+      scanned.push(...logs);
+
+      const oldest = Math.min(...logs.map(entry => entry.timestamp));
+      const gainLogs = logs
+        .map(entry => ({ ...entry, gains: parseBattleStatGains(entry) }))
+        .filter(entry => entry.gains.length);
+      all.push(...gainLogs);
+
+      if (logs.length < TORN_LOG_PAGE_LIMIT || oldest <= from) break;
+    }
   }
 
   all.coverage = calculateLogCoverage(scanned, fromTimestamp);
@@ -967,7 +1001,7 @@ async function loadBattleStatGainLogEntries(fromTimestamp, toTimestamp) {
 async function resolveUserLogRoute(from, to) {
   const routes = ["v2-user-log", "v2-user-selection-log", "v1-user-selection-log"];
   const attempts = await Promise.allSettled(routes.map(async route => {
-    const data = await loadUserLogPage(route, from, to);
+    const data = await loadUserLogPage(route, from, to, 0);
     return { route, count: normalizeLogResponse(data).length };
   }));
   const best = attempts
@@ -978,11 +1012,12 @@ async function resolveUserLogRoute(from, to) {
   return best.route;
 }
 
-function loadUserLogPage(route, from, to) {
+function loadUserLogPage(route, from, to, offset = 0) {
   const params = {
     from,
     to,
     limit: TORN_LOG_PAGE_LIMIT,
+    offset,
     key: getTornApiKey()
   };
   if (route === "v2-user-log") return getData(tornUrl(2, "/user/log", params));
@@ -990,17 +1025,66 @@ function loadUserLogPage(route, from, to) {
   return getData(tornUrl(1, "/user/", { selections: "log", ...params }));
 }
 
+async function getBattleStatGainLogTypes() {
+  const cached = getCachedBattleStatGainLogTypes();
+  if (cached.length) return cached;
+
+  try {
+    const data = await getData(tornUrl(2, "/torn/logtypes", { key: getTornApiKey() }));
+    const types = normalizeLogTypes(data)
+      .filter(item => /(gym|train|trained|battle stat|strength|defen[cs]e|speed|dexterity)/i.test(item.title))
+      .slice(0, 20);
+    if (types.length) {
+      localStorage.setItem(BATTLE_GAIN_LOG_TYPES_KEY, JSON.stringify({
+        timestamp: Date.now(),
+        types
+      }));
+      return types;
+    }
+  } catch (err) {
+  }
+
+  return [];
+}
+
+function getCachedBattleStatGainLogTypes() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(BATTLE_GAIN_LOG_TYPES_KEY) || "{}");
+    if (Date.now() - Number(cached.timestamp || 0) > 7 * 86400 * 1000) return [];
+    return Array.isArray(cached.types) ? cached.types : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function normalizeLogTypes(data) {
+  const raw = data?.logtypes || data?.log_types || data || [];
+  if (Array.isArray(raw)) {
+    return raw.map(item => ({
+      id: String(item.id ?? item.log ?? item.key ?? ""),
+      title: String(item.title ?? item.name ?? item.description ?? "")
+    })).filter(item => item.id && item.title);
+  }
+
+  return Object.entries(raw).map(([id, value]) => ({
+    id: String(value?.id ?? id),
+    title: String(value?.title ?? value?.name ?? value ?? "")
+  })).filter(item => item.id && item.title);
+}
+
 async function loadBattleStatGainEventEntries(fromTimestamp, toTimestamp) {
   const all = [];
   const scanned = [];
-  let from = Math.max(0, Number(fromTimestamp || 0));
+  const from = Math.max(0, Number(fromTimestamp || 0));
   const to = Number(toTimestamp || Math.floor(Date.now() / 1000));
 
   for (let page = 0; page < 10; page++) {
+    const offset = page * TORN_LOG_PAGE_LIMIT;
     const data = await getData(tornUrl(2, "/user/events", {
       from,
       to,
       limit: TORN_LOG_PAGE_LIMIT,
+      offset,
       sort: "ASC",
       striptags: "false",
       key: getTornApiKey()
@@ -1014,9 +1098,6 @@ async function loadBattleStatGainEventEntries(fromTimestamp, toTimestamp) {
     all.push(...gainEvents);
 
     if (events.length < TORN_LOG_PAGE_LIMIT) break;
-    const nextFrom = Math.max(...events.map(event => event.timestamp)) + 1;
-    if (!Number.isFinite(nextFrom) || nextFrom <= from) break;
-    from = nextFrom;
   }
 
   all.coverage = calculateLogCoverage(scanned, fromTimestamp);
@@ -1068,6 +1149,8 @@ function normalizeLogResponse(data) {
 
   return entries.map(item => {
     const text = decodeHtmlEntities(stripTags([
+      item.details?.title,
+      item.details?.category,
       item.title,
       item.log,
       item.text,
@@ -1076,6 +1159,7 @@ function normalizeLogResponse(data) {
       item.event,
       item.type,
       item.category,
+      item.params ? JSON.stringify(item.params) : "",
       item.data ? JSON.stringify(item.data) : ""
     ].filter(Boolean).join(" ")));
     return {
