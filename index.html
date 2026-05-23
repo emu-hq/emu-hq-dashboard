@@ -138,6 +138,16 @@
             <div class="panel-title">XANAX / REFILLS</div>
             <div class="panel-content tool-cards" id="dashboardUsagePanel">Loading from your Torn API...</div>
           </section>
+
+          <section class="panel dashboard-panel">
+            <div class="panel-title">BATTLE / EFFECTIVE STATS</div>
+            <div class="panel-content" id="dashboardBattleStatsPanel">Loading from your Torn API...</div>
+          </section>
+
+          <section class="panel dashboard-panel">
+            <div class="panel-title">WORK STATS / SKILLS</div>
+            <div class="panel-content" id="dashboardSkillsPanel">Loading from your Torn API...</div>
+          </section>
         </div>
 
         <div id="members" class="page">
@@ -210,6 +220,7 @@
                     <tr>
                       <th>Name</th>
                       <th class="sortable-th" onclick="setWarSortMode('level')">Lvl</th>
+                      <th>Score</th>
                       <th class="sortable-th" onclick="setWarSortMode('stats')">Stats</th>
                       <th class="sortable-th" onclick="setWarSortMode('status')">Desc</th>
                       <th>ETA</th>
@@ -217,7 +228,7 @@
                     </tr>
                   </thead>
                   <tbody id="warTargetsTable">
-                    <tr><td colspan="6">Waiting for war data.</td></tr>
+                    <tr><td colspan="7">Waiting for war data.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -309,13 +320,14 @@
                       <th>Player</th>
                       <th>Action</th>
                       <th>Lvl</th>
+                      <th>Score</th>
                       <th>Fair Fight</th>
                       <th>Stats</th>
                       <th>Last Action</th>
                     </tr>
                   </thead>
                   <tbody id="targetResults">
-                    <tr><td colspan="6">No targets loaded.</td></tr>
+                    <tr><td colspan="7">No targets loaded.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -427,8 +439,8 @@
               <div class="sub-title">MEMBERS</div>
               <div class="data-table-wrap">
                 <table class="data-table">
-                  <thead><tr><th>Player</th><th>Lvl</th><th>Status</th><th>Fair Fight</th><th>Stats</th><th>Last Action</th><th>Attack</th></tr></thead>
-                  <tbody id="factionScoutMembers"><tr><td colspan="7">No faction loaded.</td></tr></tbody>
+                  <thead><tr><th>Player</th><th>Lvl</th><th>Score</th><th>Status</th><th>Fair Fight</th><th>Stats</th><th>Last Action</th><th>Attack</th></tr></thead>
+                  <tbody id="factionScoutMembers"><tr><td colspan="8">No faction loaded.</td></tr></tbody>
                 </table>
               </div>
             </div>
