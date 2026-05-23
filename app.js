@@ -2285,6 +2285,7 @@ async function loadRecruiterCandidates() {
     limit: 50,
     minlevel: minLevel,
     maxlevel: maxLevel,
+    ...getRecruiterSourceFairFightParams(minStats, maxStats),
     factionless: "1",
     inactiveonly: "0"
   };
@@ -2324,6 +2325,21 @@ async function loadRecruiterCandidates() {
       );
     })
     .slice(0, limit);
+}
+
+function getRecruiterSourceFairFightParams(minStats, maxStats) {
+  if (!minStats && !maxStats) {
+    return { minff: "1.010", maxff: "2.500" };
+  }
+
+  const sourceMinStats = minStats || Math.max(1, maxStats / 80);
+  const sourceMaxStats = maxStats || Math.max(sourceMinStats * 4, TARGET_FEED_STAT_BASE * 4);
+  const minff = Math.max(1.01, statsToTargetFeedFairFight(sourceMinStats));
+  const maxff = Math.max(minff + 0.01, statsToTargetFeedFairFight(sourceMaxStats));
+  return {
+    minff: formatTargetSourceFf(minff),
+    maxff: formatTargetSourceFf(maxff)
+  };
 }
 
 function parseRange(value) {
