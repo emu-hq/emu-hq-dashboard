@@ -13,6 +13,7 @@ const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.pn
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const BATTLE_HISTORY_KEY = "emu.battleStatHistory.v1";
+const BATTLE_GAIN_EVENT_CACHE_KEY = "emu.battleGainEvents.v1";
 const TORN_LOG_PAGE_LIMIT = 100;
 const MED_OUT_WINDOW_MS = 15 * 60 * 1000;
 let battleGainsScanInFlight = false;
@@ -892,9 +893,16 @@ function formatGainList(rows) {
 
 async function loadBattleStatGainEvents(fromTimestamp) {
   const to = Math.floor(Date.now() / 1000);
+  const cached = getCachedBattleGainEvents(fromTimestamp, to);
+  const scanFrom = getBattleGainScanFrom(cached, fromTimestamp);
+  if (cached.length && scanFrom <= Number(fromTimestamp || 0)) {
+    cached.coverage = calculateLogCoverage(cached, fromTimestamp);
+    return cached;
+  }
+
   const [logResult, eventResult] = await Promise.allSettled([
-    loadBattleStatGainLogEntries(fromTimestamp, to),
-    loadBattleStatGainEventEntries(fromTimestamp, to)
+    loadBattleStatGainLogEntries(scanFrom, to),
+    loadBattleStatGainEventEntries(scanFrom, to)
   ]);
   const logEntries = logResult.status === "fulfilled" ? logResult.value : [];
   const eventEntries = eventResult.status === "fulfilled" ? eventResult.value : [];
@@ -903,7 +911,7 @@ async function loadBattleStatGainEvents(fromTimestamp) {
   if (logResult.status === "rejected" && eventResult.status === "rejected") {
     throw new Error(`${logEntries.coverage.error} | ${eventEntries.coverage.error}`);
   }
-  const all = [...logEntries, ...eventEntries];
+  const all = [...cached, ...logEntries, ...eventEntries];
 
   const deduped = [];
   const seen = new Set();
@@ -916,6 +924,7 @@ async function loadBattleStatGainEvents(fromTimestamp) {
   });
 
   deduped.coverage = mergeLogCoverage([logEntries.coverage, eventEntries.coverage], fromTimestamp);
+  cacheBattleGainEvents(deduped);
   return deduped;
 }
 
@@ -1210,6 +1219,47 @@ function sumBattleStatGainEvents(events) {
   }, { strength: 0, defense: 0, speed: 0, dexterity: 0 });
 }
 
+function getCachedBattleGainEvents(fromTimestamp, toTimestamp) {
+  try {
+    const from = Number(fromTimestamp || 0);
+    const to = Number(toTimestamp || Math.floor(Date.now() / 1000));
+    const parsed = JSON.parse(localStorage.getItem(BATTLE_GAIN_EVENT_CACHE_KEY) || "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter(event => Number(event.timestamp || 0) >= from && Number(event.timestamp || 0) <= to)
+      : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function getBattleGainScanFrom(cached, requestedFrom) {
+  const requested = Number(requestedFrom || 0);
+  if (!cached.length) return requested;
+  const oldest = Math.min(...cached.map(event => Number(event.timestamp || 0)).filter(Boolean));
+  return Math.max(requested, oldest - 14 * 86400);
+}
+
+function cacheBattleGainEvents(events) {
+  try {
+    const existing = JSON.parse(localStorage.getItem(BATTLE_GAIN_EVENT_CACHE_KEY) || "[]");
+    const combined = [...(Array.isArray(existing) ? existing : []), ...events];
+    const seen = new Set();
+    const cutoff = Math.floor(Date.now() / 1000) - 190 * 86400;
+    const cleaned = combined
+      .filter(event => event && Number(event.timestamp || 0) >= cutoff && Array.isArray(event.gains))
+      .sort((a, b) => Number(b.timestamp) - Number(a.timestamp))
+      .filter(event => {
+        const key = `${event.timestamp}:${event.text}:${event.gains.map(gain => `${gain.stat}:${gain.amount}`).join(",")}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 5000);
+    localStorage.setItem(BATTLE_GAIN_EVENT_CACHE_KEY, JSON.stringify(cleaned));
+  } catch (err) {
+  }
+}
+
 function calculateLogCoverage(entries, requestedFrom) {
   const timestamps = entries
     .map(entry => Number(entry.timestamp || 0))
@@ -1244,8 +1294,8 @@ function formatBattleGainCoverage(coverage, requestedFrom) {
   const reached = oldest && requested && oldest <= requested;
   const start = oldest ? formatDateTime(oldest) : "unknown";
   return reached
-    ? `${formatNumber(count)} records scanned back to ${start}.`
-    : `${formatNumber(count)} records scanned; oldest returned was ${start}, so Torn did not provide the full selected period.`;
+    ? `${formatNumber(count)} cached/scanned gain records back to ${start}.`
+    : `${formatNumber(count)} cached/scanned records; oldest returned was ${start}, so Torn did not provide the full selected period yet. Try the period again later after the cache has had time to build.`;
 }
 
 function stripTags(value) {
