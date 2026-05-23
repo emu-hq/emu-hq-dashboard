@@ -807,6 +807,7 @@ async function calculateBattleStatGains(days, label) {
     const from = Math.floor(Date.now() / 1000) - Math.round(Number(days) * 86400);
     const events = await loadBattleStatGainEvents(from);
     const coverage = events.coverage || {};
+    const coveredLabel = getBattleGainCoveredLabel(coverage, from, label);
     const totals = sumBattleStatGainEvents(events);
     const rows = [
       ["strength", "Strength"],
@@ -817,8 +818,8 @@ async function calculateBattleStatGains(days, label) {
     const totalGain = rows.reduce((sum, row) => sum + row.gain, 0);
     const gainedRows = rows.filter(row => row.gain > 0);
     const gainSentence = gainedRows.length
-      ? `You have gained ${formatGainList(gainedRows)} over the period of ${label}. You have gained a total of ${formatNumber(totalGain)} stats.`
-      : `No battle stat gain events were found over the period of ${label}.`;
+      ? `You have gained ${formatGainList(gainedRows)} over ${coveredLabel}. You have gained a total of ${formatNumber(totalGain)} stats.`
+      : `No battle stat gain events were found over ${coveredLabel}.`;
     const gainRowsHtml = gainedRows.length
       ? gainedRows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(formatNumber(row.gain))}</td></tr>`).join("")
       : `<tr><td colspan="2" class="muted">No gains detected for this period.</td></tr>`;
@@ -1374,12 +1375,21 @@ function formatBattleGainCoverage(coverage, requestedFrom) {
   const oldest = Number(coverage?.oldest || 0);
   const requested = Number(requestedFrom || coverage?.requestedFrom || 0);
   if (coverage?.error) return coverage.error;
-  if (!count) return "No matching log/event records returned.";
+  if (!count) return "No matching gain logs were returned for this scan.";
   const reached = oldest && requested && oldest <= requested;
   const start = oldest ? formatDateTime(oldest) : "unknown";
   return reached
-    ? `${formatNumber(count)} cached/scanned gain records back to ${start}.`
-    : `${formatNumber(count)} cached/scanned records; oldest returned was ${start}, so Torn did not provide the full selected period yet. Try the period again later after the cache has had time to build.`;
+    ? `Full selected period covered. ${formatNumber(count)} records checked back to ${start}.`
+    : `Partial scan only. Torn returned ${formatNumber(count)} records back to ${start}, so this is not the full selected period.`;
+}
+
+function getBattleGainCoveredLabel(coverage, requestedFrom, label) {
+  const oldest = Number(coverage?.oldest || 0);
+  const requested = Number(requestedFrom || coverage?.requestedFrom || 0);
+  if (oldest && requested && oldest > requested) {
+    return `the partial period since ${formatDateTime(oldest)}`;
+  }
+  return `the period of ${label}`;
 }
 
 function stripTags(value) {
