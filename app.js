@@ -892,11 +892,13 @@ function formatGainList(rows) {
 
 async function loadBattleStatGainEvents(fromTimestamp) {
   const to = Math.floor(Date.now() / 1000);
+  const remoteEvents = await fetchRemoteBattleGainEvents(fromTimestamp, to);
   const cached = getCachedBattleGainEvents(fromTimestamp, to);
   const scanFrom = getBattleGainScanFrom(cached, fromTimestamp);
   if (cached.length && scanFrom <= Number(fromTimestamp || 0)) {
-    cached.coverage = calculateLogCoverage(cached, fromTimestamp);
-    return cached;
+    const mergedCached = mergeRemoteAndLocalGainEvents(remoteEvents, cached);
+    mergedCached.coverage = calculateLogCoverage(mergedCached, fromTimestamp);
+    return mergedCached;
   }
 
   const [logResult, eventResult] = await Promise.allSettled([
@@ -922,9 +924,11 @@ async function loadBattleStatGainEvents(fromTimestamp) {
     }
   });
 
-  deduped.coverage = mergeLogCoverage([logEntries.coverage, eventEntries.coverage], fromTimestamp);
+  const merged = mergeRemoteAndLocalGainEvents(remoteEvents, deduped);
+  merged.coverage = mergeLogCoverage([logEntries.coverage, eventEntries.coverage, calculateLogCoverage(remoteEvents, fromTimestamp)], fromTimestamp);
   cacheBattleGainEvents(deduped);
-  return deduped;
+  syncBattleGainDaysToWorker(deduped);
+  return merged;
 }
 
 async function loadBattleStatGainLogEntries(fromTimestamp, toTimestamp) {
@@ -1340,6 +1344,86 @@ function cacheBattleGainEvents(events) {
     localStorage.setItem(BATTLE_GAIN_EVENT_CACHE_KEY, JSON.stringify(cleaned));
   } catch (err) {
   }
+}
+
+async function fetchRemoteBattleGainEvents(fromTimestamp, toTimestamp) {
+  if (!activePlayerId) return [];
+  try {
+    const data = await getData(`${EMU_WORKER_API}/api/gains/${encodeURIComponent(activePlayerId)}?from=${encodeURIComponent(fromTimestamp || 0)}&to=${encodeURIComponent(toTimestamp || Math.floor(Date.now() / 1000))}`);
+    return Array.isArray(data.days)
+      ? data.days.map(dayToGainEvent).filter(Boolean)
+      : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function syncBattleGainDaysToWorker(events) {
+  if (!activePlayerId || !events?.length) return;
+  const days = buildBattleGainDaySummaries(events);
+  if (!days.length) return;
+
+  fetch(`${EMU_WORKER_API}/api/gains/${encodeURIComponent(activePlayerId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ days })
+  }).catch(() => {});
+}
+
+function buildBattleGainDaySummaries(events) {
+  const byDate = new Map();
+  events.forEach(event => {
+    const date = formatGainDate(event.timestamp);
+    if (!date) return;
+    const day = byDate.get(date) || {
+      date,
+      timestamp: dayStartTimestamp(date),
+      strength: 0,
+      defense: 0,
+      speed: 0,
+      dexterity: 0
+    };
+    event.gains.forEach(gain => {
+      if (gain.stat in day) day[gain.stat] += Number(gain.amount || 0);
+    });
+    byDate.set(date, day);
+  });
+  return Array.from(byDate.values()).filter(day => day.strength || day.defense || day.speed || day.dexterity);
+}
+
+function mergeRemoteAndLocalGainEvents(remoteEvents, localEvents) {
+  const localDates = new Set(localEvents.map(event => formatGainDate(event.timestamp)).filter(Boolean));
+  const merged = [
+    ...localEvents,
+    ...remoteEvents.filter(event => !localDates.has(formatGainDate(event.timestamp)))
+  ].sort((a, b) => b.timestamp - a.timestamp);
+  return merged;
+}
+
+function dayToGainEvent(day) {
+  const timestamp = Number(day.timestamp || dayStartTimestamp(day.date));
+  const gains = ["strength", "defense", "speed", "dexterity"]
+    .map(stat => ({ stat, amount: Number(day[stat] || 0) }))
+    .filter(gain => gain.amount > 0);
+  if (!timestamp || !gains.length) return null;
+  return {
+    id: `remote:${day.date}`,
+    timestamp,
+    text: `Cloudflare daily gain summary ${day.date}`,
+    raw: day,
+    source: "cloudflare",
+    gains
+  };
+}
+
+function formatGainDate(timestamp) {
+  const date = new Date(Number(timestamp || 0) * 1000);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function dayStartTimestamp(date) {
+  return Math.floor(new Date(`${date}T00:00:00Z`).getTime() / 1000);
 }
 
 function calculateLogCoverage(entries, requestedFrom) {
