@@ -415,38 +415,47 @@ async function loadFactionData() {
 }
 
 async function loadDashboardExtras(sequence) {
-  const [honorsResult, jobPointsResult, usageResult, battleResult, workResult, skillsResult] = await Promise.allSettled([
-    loadUserHonorsData(),
-    loadUserJobPointsData(),
-    loadOwnUsageInsights(),
-    loadUserBattleStatsData(),
-    loadUserWorkStatsData(),
-    loadUserSkillsData()
-  ]);
+  loadUserHonorsData()
+    .then(data => {
+      if (sequence === loadSequence) loadUserHonors(data);
+    })
+    .catch(() => {});
 
-  if (sequence !== loadSequence) return;
+  loadUserJobPointsData()
+    .then(data => {
+      if (sequence === loadSequence) renderJobPoints(data);
+    })
+    .catch(() => {
+      if (sequence === loadSequence) setHtml("jobPointsPanel", emptyMessage("Job points unavailable for this key."));
+    });
 
-  if (honorsResult.status === "fulfilled") {
-    loadUserHonors(honorsResult.value);
-  }
+  loadOwnUsageInsights()
+    .then(data => {
+      if (sequence === loadSequence) renderDashboardUsage(data);
+    })
+    .catch(() => {
+      if (sequence === loadSequence) setHtml("dashboardUsagePanel", emptyMessage("Xanax and refill averages unavailable for this key."));
+    });
 
-  if (jobPointsResult.status === "fulfilled") {
-    renderJobPoints(jobPointsResult.value);
-  } else {
-    setHtml("jobPointsPanel", emptyMessage("Job points unavailable for this key."));
-  }
+  loadUserBattleStatsData()
+    .then(data => {
+      if (sequence === loadSequence) renderDashboardStats({ battle: data, work: null, skills: null });
+    })
+    .catch(() => {
+      if (sequence === loadSequence) setHtml("dashboardBattleStatsPanel", emptyMessage("Battle stats unavailable. The API key may need battlestats access."));
+    });
 
-  if (usageResult.status === "fulfilled") {
-    renderDashboardUsage(usageResult.value);
-  } else {
-    setHtml("dashboardUsagePanel", emptyMessage("Xanax and refill averages unavailable for this key."));
-  }
-
-  renderDashboardStats({
-    battle: battleResult.status === "fulfilled" ? battleResult.value : null,
-    work: workResult.status === "fulfilled" ? workResult.value : null,
-    skills: skillsResult.status === "fulfilled" ? skillsResult.value : null
-  });
+  Promise.allSettled([loadUserWorkStatsData(), loadUserSkillsData()])
+    .then(([workResult, skillsResult]) => {
+      if (sequence !== loadSequence) return;
+      renderDashboardSkills({
+        work: workResult.status === "fulfilled" ? workResult.value : null,
+        skills: skillsResult.status === "fulfilled" ? skillsResult.value : null
+      });
+    })
+    .catch(() => {
+      if (sequence === loadSequence) setHtml("dashboardSkillsPanel", emptyMessage("Work stats and skills unavailable for this key."));
+    });
 }
 
 function loadUserHonors(data) {
@@ -685,10 +694,7 @@ function renderDashboardUsage(usage) {
 
 function renderDashboardStats(data) {
   const battle = normalizeBattleStats(data.battle);
-  const work = normalizeWorkStats(data.work);
-  const skills = normalizeSkillStats(data.skills);
   const hasBattle = battle.total > 0 || battle.strength > 0 || battle.defense > 0 || battle.speed > 0 || battle.dexterity > 0;
-  const hasWork = work.manual > 0 || work.intelligence > 0 || work.endurance > 0;
 
   setHtml("dashboardBattleStatsPanel", hasBattle
     ? `
@@ -711,6 +717,12 @@ function renderDashboardStats(data) {
       </div>
     `
     : emptyMessage("Battle stats unavailable. The API key may need battlestats access."));
+}
+
+function renderDashboardSkills(data) {
+  const work = normalizeWorkStats(data.work);
+  const skills = normalizeSkillStats(data.skills);
+  const hasWork = work.manual > 0 || work.intelligence > 0 || work.endurance > 0;
 
   setHtml("dashboardSkillsPanel", `
     <div class="jobpoints-grid">
