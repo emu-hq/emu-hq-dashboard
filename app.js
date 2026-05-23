@@ -2278,6 +2278,8 @@ async function loadRecruiterCandidates() {
   const limit = clampNumber(inputValue("recruitLimit", 20), 1, 50);
   const minLevel = clampNumber(inputValue("recruitMinLevel", 1), 1, 100);
   const maxLevel = clampNumber(inputValue("recruitMaxLevel", 100), 1, 100);
+  const minStats = parseNumberish(inputValue("recruitMinStats", ""));
+  const maxStats = parseNumberish(inputValue("recruitMaxStats", ""));
   const [minActive, maxActive] = parseRange(document.getElementById("recruitActivity")?.value || "0-86400");
   const params = {
     limit: 50,
@@ -2308,9 +2310,20 @@ async function loadRecruiterCandidates() {
       return age !== null && age >= minActive && age <= maxActive;
     })
     .sort((a, b) => (getLastActionAgeSeconds(a) ?? Infinity) - (getLastActionAgeSeconds(b) ?? Infinity))
-    .slice(0, limit);
+    .slice(0, 50);
+
   const enriched = await enrichTargetsWithBSP(active);
-  return enriched;
+  return enriched
+    .filter(target => {
+      const stats = getTargetEstimateValues(target);
+      if (!minStats && !maxStats) return true;
+      return stats.some(value =>
+        value > 0 &&
+        (!minStats || value >= minStats) &&
+        (!maxStats || value <= Math.max(minStats || 0, maxStats))
+      );
+    })
+    .slice(0, limit);
 }
 
 function parseRange(value) {
