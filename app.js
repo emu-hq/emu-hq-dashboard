@@ -13,6 +13,21 @@ const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.pn
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const MED_OUT_WINDOW_MS = 15 * 60 * 1000;
+const CRIME_SKILL_NAMES = {
+  1: "Search for Cash",
+  2: "Bootlegging",
+  3: "Graffiti",
+  4: "Shoplifting",
+  5: "Pickpocketing",
+  6: "Card Skimming",
+  7: "Burglary",
+  8: "Hustling",
+  9: "Disposal",
+  10: "Cracking",
+  11: "Scamming",
+  12: "Arson",
+  13: "Forgery"
+};
 const TRAVEL_TIMES = {
   "mexico": { name: "Mexico", standard: 26, airstrip: 18 },
   "cayman islands": { name: "Cayman Islands", standard: 35, airstrip: 25 },
@@ -545,6 +560,7 @@ function loadUser(user, honorsData) {
     : "-";
 
   setText("levelDay", lvlDay);
+  setText("networthValue", formatMoney(profile.networth ?? user.networth ?? profile.net_worth ?? user.net_worth));
   setText("frenemiesValue", `+${profile.friends ?? user.friends ?? 0} / ${profile.enemies ?? user.enemies ?? 0}`);
   setText("honorValue", formatNumber(legacyProfile.honor_id ?? legacyProfile.honor ?? profile.honor_id ?? user.honor_id ?? profile.honor ?? user.honor ?? extractHonorCount(honorsData) ?? profile.honors ?? user.honors ?? "-"));
   setText("awardsValue", profile.awards ?? user.awards ?? "-");
@@ -708,11 +724,11 @@ function renderDashboardStats(data) {
           ["Efficient Score", battle.score]
         ])}
         ${statBlockTable("EFFECTIVE STATS", [
-          ["Strength", battle.effectiveStrength],
-          ["Defense", battle.effectiveDefense],
-          ["Speed", battle.effectiveSpeed],
-          ["Dexterity", battle.effectiveDexterity],
-          ["Total", battle.effectiveTotal]
+          ["Strength", formatEffectiveStat(battle.effectiveStrength, battle.strength)],
+          ["Defense", formatEffectiveStat(battle.effectiveDefense, battle.defense)],
+          ["Speed", formatEffectiveStat(battle.effectiveSpeed, battle.speed)],
+          ["Dexterity", formatEffectiveStat(battle.effectiveDexterity, battle.dexterity)],
+          ["Total", battle.effectiveTotal || "-"]
         ])}
       </div>
     `
@@ -753,15 +769,53 @@ function normalizeBattleStats(data) {
   const defense = readStatNumber(root, ["defense", "defence", "def"]);
   const speed = readStatNumber(root, ["speed", "spd"]);
   const dexterity = readStatNumber(root, ["dexterity", "dex"]);
-  const effectiveStrength = readStatNumber(root, ["effective_strength", "effectiveStrength", "strength_effective"], strength);
-  const effectiveDefense = readStatNumber(root, ["effective_defense", "effective_defence", "effectiveDefense", "defense_effective"], defense);
-  const effectiveSpeed = readStatNumber(root, ["effective_speed", "effectiveSpeed", "speed_effective"], speed);
-  const effectiveDexterity = readStatNumber(root, ["effective_dexterity", "effectiveDexterity", "dexterity_effective"], dexterity);
+  const effectiveStrength = readEffectiveStat(root, "strength");
+  const effectiveDefense = readEffectiveStat(root, "defense");
+  const effectiveSpeed = readEffectiveStat(root, "speed");
+  const effectiveDexterity = readEffectiveStat(root, "dexterity");
   const total = readStatNumber(root, ["total", "total_battlestats"], strength + defense + speed + dexterity);
-  const effectiveTotal = readStatNumber(root, ["effective_total", "effectiveTotal"], effectiveStrength + effectiveDefense + effectiveSpeed + effectiveDexterity);
+  const effectiveValues = [effectiveStrength, effectiveDefense, effectiveSpeed, effectiveDexterity].filter(value => Number.isFinite(Number(value)) && Number(value) > 0);
+  const effectiveTotal = readStatNumber(root, ["effective_total", "effectiveTotal"], effectiveValues.length === 4 ? effectiveValues.reduce((sum, value) => sum + Number(value), 0) : 0);
   const score = Math.floor(Math.sqrt(strength) + Math.sqrt(defense) + Math.sqrt(speed) + Math.sqrt(dexterity));
 
   return { strength, defense, speed, dexterity, total, effectiveStrength, effectiveDefense, effectiveSpeed, effectiveDexterity, effectiveTotal, score };
+}
+
+function readEffectiveStat(root, stat) {
+  const aliases = {
+    strength: ["strength", "str"],
+    defense: ["defense", "defence", "def"],
+    speed: ["speed", "spd"],
+    dexterity: ["dexterity", "dex"]
+  }[stat] || [stat];
+
+  for (const alias of aliases) {
+    const direct = readStatNumber(root, [
+      `effective_${alias}`,
+      `${alias}_effective`,
+      `effective${alias.charAt(0).toUpperCase()}${alias.slice(1)}`
+    ], 0);
+    if (direct > 0) return direct;
+
+    const nested = root?.[alias];
+    if (nested && typeof nested === "object") {
+      const nestedEffective = nested.effective ?? nested.modified ?? nested.current ?? nested.total;
+      if (Number.isFinite(Number(nestedEffective))) return Number(nestedEffective);
+    }
+  }
+
+  return 0;
+}
+
+function formatEffectiveStat(effective, raw) {
+  const eff = Number(effective);
+  const base = Number(raw);
+  if (!eff) return "-";
+  if (!base) return formatNumber(eff);
+
+  const pct = ((eff / base - 1) * 100);
+  const sign = pct >= 0 ? "+" : "";
+  return `${formatNumber(eff)} (${sign}${pct.toFixed(0)}%)`;
 }
 
 function normalizeWorkStats(data) {
@@ -780,12 +834,12 @@ function normalizeSkillStats(data) {
   function walk(prefix, value) {
     if (rows.length >= 18 || value === null || value === undefined) return;
     if (typeof value === "number" || typeof value === "string") {
-      if (Number.isFinite(Number(value)) || String(value).trim()) rows.push([titleCase(prefix), value]);
+      if (Number.isFinite(Number(value)) || String(value).trim()) rows.push([formatSkillName(prefix), value]);
       return;
     }
     if (typeof value !== "object") return;
     if ("level" in value || "skill" in value || "value" in value) {
-      rows.push([titleCase(prefix), value.level ?? value.skill ?? value.value]);
+      rows.push([formatSkillName(prefix), value.level ?? value.skill ?? value.value]);
       return;
     }
     Object.entries(value).forEach(([key, item]) => walk(key, item));
@@ -793,6 +847,14 @@ function normalizeSkillStats(data) {
 
   walk("skills", root);
   return rows.filter(([name]) => name && name !== "Skills");
+}
+
+function formatSkillName(value) {
+  const raw = String(value ?? "").trim();
+  if (CRIME_SKILL_NAMES[raw]) return CRIME_SKILL_NAMES[raw];
+  const crimeMatch = raw.match(/(?:crime|crimes|skill)[_\s-]*(\d+)/i);
+  if (crimeMatch && CRIME_SKILL_NAMES[crimeMatch[1]]) return CRIME_SKILL_NAMES[crimeMatch[1]];
+  return titleCase(raw.replace(/^crime[_\s-]*/i, ""));
 }
 
 function readStatNumber(source, keys, fallback = 0) {
@@ -3584,6 +3646,12 @@ function formatNumber(value) {
   if (value === undefined || value === null || value === "") return "-";
   const number = Number(value);
   return Number.isFinite(number) ? number.toLocaleString() : String(value);
+}
+
+function formatMoney(value) {
+  if (value === undefined || value === null || value === "") return "-";
+  const number = Number(value);
+  return Number.isFinite(number) ? `$${number.toLocaleString("en-US")}` : String(value);
 }
 
 function compactNumber(value) {
