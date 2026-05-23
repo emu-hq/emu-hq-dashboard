@@ -366,6 +366,17 @@ async function loadUserBattleStatsData(timestamp) {
     ...(timestamp ? { timestamp } : {}),
     key: getTornApiKey()
   };
+  if (timestamp) {
+    try {
+      return await getData(tornUrl(2, "/user/battlestats", {
+        timestamp: String(timestamp),
+        key: getTornApiKey()
+      }));
+    } catch (err) {
+      return getData(tornUrl(1, "/user/", params));
+    }
+  }
+
   try {
     return await getData(tornUrl(2, "/user", params));
   } catch (err) {
@@ -779,23 +790,36 @@ async function calculateBattleStatGains(days, label) {
       return { name, gain };
     });
     const totalGain = rows.reduce((sum, row) => sum + row.gain, 0);
-    const best = rows.slice().sort((a, b) => b.gain - a.gain)[0];
+    const gainedRows = rows.filter(row => row.gain > 0);
+    const gainSentence = gainedRows.length
+      ? `You have gained ${formatGainList(gainedRows)} over the period of ${label}. You have gained a total of ${formatNumber(totalGain)} stats.`
+      : `No battle stat gains were detected over the period of ${label}.`;
+    const gainRowsHtml = gainedRows.length
+      ? gainedRows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(formatNumber(row.gain))}</td></tr>`).join("")
+      : `<tr><td colspan="2" class="muted">No gains detected for this period.</td></tr>`;
 
     setHtml("battleGainsPanel", `
       <div class="data-table-wrap">
         <table class="data-table compact-table">
           <thead><tr><th>${escapeHtml(label)} Battle Stat Gains</th><th>Gain</th></tr></thead>
           <tbody>
-            ${rows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(formatNumber(row.gain))}</td></tr>`).join("")}
-            <tr><td>Total gained</td><td>${escapeHtml(formatNumber(totalGain))}</td></tr>
+            ${gainRowsHtml}
+            ${gainedRows.length ? `<tr><td>Total gained</td><td>${escapeHtml(formatNumber(totalGain))}</td></tr>` : ""}
           </tbody>
         </table>
       </div>
-      <p class="scan-line">You have gained ${escapeHtml(formatNumber(best.gain))} ${escapeHtml(best.name.toLowerCase())} over ${escapeHtml(label)}. You have gained a total of ${escapeHtml(formatNumber(totalGain))} stats.</p>
+      <p class="scan-line">${escapeHtml(gainSentence)}</p>
     `);
   } catch (err) {
     setHtml("battleGainsPanel", `<span class="danger">Could not calculate gains. The key may need battlestats access or Torn may not have that snapshot.</span>`);
   }
+}
+
+function formatGainList(rows) {
+  const parts = rows.map(row => `${formatNumber(row.gain)} ${row.name.toLowerCase()}`);
+  if (parts.length <= 1) return parts[0] || "0 stats";
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
 function renderDashboardSkills(data) {
@@ -862,6 +886,9 @@ function readEffectiveStat(root, stat) {
 
     const nested = root?.[alias];
     if (nested && typeof nested === "object") {
+      if (Number.isFinite(Number(nested.value)) && Number.isFinite(Number(nested.modifier))) {
+        return Math.round(Number(nested.value) * (1 + Number(nested.modifier) / 100));
+      }
       const nestedEffective = nested.effective ?? nested.modified ?? nested.current ?? nested.total;
       if (Number.isFinite(Number(nestedEffective))) return Number(nestedEffective);
     }
