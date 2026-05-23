@@ -762,7 +762,6 @@ function renderDashboardStats(data) {
         <button type="button" class="save-btn" data-battle-gain-button="true" onclick="calculateBattleStatGains(1, '24 hours')">24H GAINS</button>
         <button type="button" class="save-btn" data-battle-gain-button="true" onclick="calculateBattleStatGains(7, '1 week')">1W GAINS</button>
         <button type="button" class="save-btn" data-battle-gain-button="true" onclick="calculateBattleStatGains(30, '1 month')">1M GAINS</button>
-        <button type="button" class="save-btn" data-battle-gain-button="true" onclick="calculateBattleStatGains(183, '6 months')">6M GAINS</button>
       </div>
       <div id="battleGainsPanel" class="scan-line">Select a period to calculate gains.</div>
       <div class="jobpoints-grid">
@@ -807,7 +806,6 @@ async function calculateBattleStatGains(days, label) {
     const from = Math.floor(Date.now() / 1000) - Math.round(Number(days) * 86400);
     const events = await loadBattleStatGainEvents(from);
     const coverage = events.coverage || {};
-    const coveredLabel = getBattleGainCoveredLabel(coverage, from, label);
     const totals = sumBattleStatGainEvents(events);
     const rows = [
       ["strength", "Strength"],
@@ -818,8 +816,8 @@ async function calculateBattleStatGains(days, label) {
     const totalGain = rows.reduce((sum, row) => sum + row.gain, 0);
     const gainedRows = rows.filter(row => row.gain > 0);
     const gainSentence = gainedRows.length
-      ? `You have gained ${formatGainList(gainedRows)} over ${coveredLabel}. You have gained a total of ${formatNumber(totalGain)} stats.`
-      : `No battle stat gain events were found over ${coveredLabel}.`;
+      ? `You have gained ${formatGainList(gainedRows)} over the period of ${label}. You have gained a total of ${formatNumber(totalGain)} stats.`
+      : `No battle stat gain events were found over the period of ${label}.`;
     const gainRowsHtml = gainedRows.length
       ? gainedRows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(formatNumber(row.gain))}</td></tr>`).join("")
       : `<tr><td colspan="2" class="muted">No gains detected for this period.</td></tr>`;
@@ -843,8 +841,7 @@ async function calculateBattleStatGains(days, label) {
           <tbody>
             ${gainRowsHtml}
             ${gainedRows.length ? `<tr><td>Total gained</td><td>${escapeHtml(formatNumber(totalGain))}</td></tr>` : ""}
-            <tr><td>Source</td><td>${escapeHtml(`${events.length} Torn log/event${events.length === 1 ? "" : "s"} with stat gains`)}</td></tr>
-            <tr><td>Scan coverage</td><td>${escapeHtml(formatBattleGainCoverage(coverage, from))}</td></tr>
+            <tr><td>Logs checked</td><td>${escapeHtml(formatNumber(Number(coverage.count || events.length || 0)))}</td></tr>
           </tbody>
         </table>
       </div>
@@ -1377,7 +1374,13 @@ function formatBattleGainCoverage(coverage, requestedFrom) {
   if (coverage?.error) return coverage.error;
   if (!count) return "No matching gain logs were returned for this scan.";
   const reached = oldest && requested && oldest <= requested;
+  const missingSeconds = oldest && requested ? Math.max(0, oldest - requested) : 0;
+  const requestedSeconds = requested ? Math.max(1, Math.floor(Date.now() / 1000) - requested) : 0;
+  const missingRatio = requestedSeconds ? missingSeconds / requestedSeconds : 0;
   const start = oldest ? formatDateTime(oldest) : "unknown";
+  if (reached || missingSeconds <= 2 * 60 * 60 || missingRatio < 0.08) {
+    return `${formatNumber(count)} records checked since ${start}.`;
+  }
   return reached
     ? `Full selected period covered. ${formatNumber(count)} records checked back to ${start}.`
     : `Partial scan only. Torn returned ${formatNumber(count)} records back to ${start}, so this is not the full selected period.`;
@@ -1386,7 +1389,10 @@ function formatBattleGainCoverage(coverage, requestedFrom) {
 function getBattleGainCoveredLabel(coverage, requestedFrom, label) {
   const oldest = Number(coverage?.oldest || 0);
   const requested = Number(requestedFrom || coverage?.requestedFrom || 0);
-  if (oldest && requested && oldest > requested) {
+  const missingSeconds = oldest && requested ? Math.max(0, oldest - requested) : 0;
+  const requestedSeconds = requested ? Math.max(1, Math.floor(Date.now() / 1000) - requested) : 0;
+  const missingRatio = requestedSeconds ? missingSeconds / requestedSeconds : 0;
+  if (oldest && requested && oldest > requested && missingSeconds > 2 * 60 * 60 && missingRatio >= 0.08) {
     return `the partial period since ${formatDateTime(oldest)}`;
   }
   return `the period of ${label}`;
