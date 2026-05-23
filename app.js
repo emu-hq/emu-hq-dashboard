@@ -14,18 +14,19 @@ const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const MED_OUT_WINDOW_MS = 15 * 60 * 1000;
 const CRIME_SKILL_NAMES = {
-  1: "Search for Cash",
-  2: "Bootlegging",
-  3: "Graffiti",
-  4: "Shoplifting",
-  5: "Pickpocketing",
-  6: "Card Skimming",
-  7: "Burglary",
-  8: "Hustling",
-  9: "Disposal",
-  10: "Cracking",
-  11: "Scamming",
-  12: "Arson",
+  0: "Search for Cash",
+  1: "Bootlegging",
+  2: "Graffiti",
+  3: "Shoplifting",
+  4: "Pickpocketing",
+  5: "Card Skimming",
+  6: "Burglary",
+  7: "Hustling",
+  8: "Disposal",
+  9: "Cracking",
+  10: "Scamming",
+  11: "Arson",
+  12: "Forgery",
   13: "Forgery"
 };
 const TRAVEL_TIMES = {
@@ -359,14 +360,22 @@ async function loadOwnDashboardStats() {
   };
 }
 
-async function loadUserBattleStatsData() {
+async function loadUserBattleStatsData(timestamp) {
+  const params = {
+    selections: "battlestats",
+    ...(timestamp ? { timestamp } : {}),
+    key: getTornApiKey()
+  };
   try {
-    return await getData(tornUrl(2, "/user", { selections: "battlestats", key: getTornApiKey() }));
+    return await getData(tornUrl(2, "/user", params));
   } catch (err) {
     try {
-      return await getData(tornUrl(2, "/user/battlestats", { key: getTornApiKey() }));
+      return await getData(tornUrl(2, "/user/battlestats", {
+        ...(timestamp ? { timestamp } : {}),
+        key: getTornApiKey()
+      }));
     } catch (fallbackErr) {
-      return getData(tornUrl(1, "/user/", { selections: "battlestats", key: getTornApiKey() }));
+      return getData(tornUrl(1, "/user/", params));
     }
   }
 }
@@ -714,6 +723,14 @@ function renderDashboardStats(data) {
 
   setHtml("dashboardBattleStatsPanel", hasBattle
     ? `
+      <div class="tool-actions">
+        <button type="button" class="save-btn" onclick="calculateBattleStatGains(1, '24 hours')">24H GAINS</button>
+        <button type="button" class="save-btn" onclick="calculateBattleStatGains(7, '1 week')">1W GAINS</button>
+        <button type="button" class="save-btn" onclick="calculateBattleStatGains(30, '1 month')">1M GAINS</button>
+        <button type="button" class="save-btn" onclick="calculateBattleStatGains(183, '6 months')">6M GAINS</button>
+        <button type="button" class="save-btn" onclick="calculateBattleStatGains(365, '1 year')">1Y GAINS</button>
+      </div>
+      <div id="battleGainsPanel" class="scan-line">Select a period to calculate gains.</div>
       <div class="jobpoints-grid">
         ${statBlockTable("BATTLE STATS", [
           ["Strength", battle.strength],
@@ -733,6 +750,52 @@ function renderDashboardStats(data) {
       </div>
     `
     : emptyMessage("Battle stats unavailable. The API key may need battlestats access."));
+}
+
+async function calculateBattleStatGains(days, label) {
+  if (!hasTornApiKey()) {
+    setHtml("battleGainsPanel", `<span class="danger">Enter your Torn API key first.</span>`);
+    return;
+  }
+
+  const target = document.getElementById("battleGainsPanel");
+  if (target) target.innerHTML = "Calculating gains...";
+
+  try {
+    const timestamp = Math.floor(Date.now() / 1000) - Math.round(Number(days) * 86400);
+    const [currentData, previousData] = await Promise.all([
+      loadUserBattleStatsData(),
+      loadUserBattleStatsData(timestamp)
+    ]);
+    const current = normalizeBattleStats(currentData);
+    const previous = normalizeBattleStats(previousData);
+    const rows = [
+      ["strength", "Strength"],
+      ["defense", "Defense"],
+      ["speed", "Speed"],
+      ["dexterity", "Dexterity"]
+    ].map(([key, name]) => {
+      const gain = Math.max(0, Number(current[key] || 0) - Number(previous[key] || 0));
+      return { name, gain };
+    });
+    const totalGain = rows.reduce((sum, row) => sum + row.gain, 0);
+    const best = rows.slice().sort((a, b) => b.gain - a.gain)[0];
+
+    setHtml("battleGainsPanel", `
+      <div class="data-table-wrap">
+        <table class="data-table compact-table">
+          <thead><tr><th>${escapeHtml(label)} Battle Stat Gains</th><th>Gain</th></tr></thead>
+          <tbody>
+            ${rows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(formatNumber(row.gain))}</td></tr>`).join("")}
+            <tr><td>Total gained</td><td>${escapeHtml(formatNumber(totalGain))}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="scan-line">You have gained ${escapeHtml(formatNumber(best.gain))} ${escapeHtml(best.name.toLowerCase())} over ${escapeHtml(label)}. You have gained a total of ${escapeHtml(formatNumber(totalGain))} stats.</p>
+    `);
+  } catch (err) {
+    setHtml("battleGainsPanel", `<span class="danger">Could not calculate gains. The key may need battlestats access or Torn may not have that snapshot.</span>`);
+  }
 }
 
 function renderDashboardSkills(data) {
