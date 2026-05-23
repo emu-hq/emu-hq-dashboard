@@ -8,6 +8,7 @@ const BSP_CACHE_DAYS = 5;
 const BUILD_VERSION = "2026-05-20-native-tools-9";
 const POLL_INTERVAL_MS = 60000;
 const TARGET_FEED_STAT_BASE = 42565126;
+const TARGET_BATCH_ATTEMPT_LIMIT = 10;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
@@ -1846,7 +1847,7 @@ async function searchTargets() {
       targetResultPool = await loadTargetFinderBatch();
     } else {
       targetResultPool = [];
-      appendUniqueTargets(await loadTargetFinderBatch());
+      await ensureTargetPoolSize(getTargetPageSize());
     }
 
     renderTargetPage();
@@ -1891,7 +1892,7 @@ async function changeTargetPage(direction) {
     const currentPageEnd = (targetPageIndex + 1) * pageSize;
 
     try {
-      appendUniqueTargets(await loadTargetFinderBatch());
+      await ensureTargetPoolSize((nextPage + 1) * pageSize);
     } catch (err) {
       setText("targetStatus", err.message || "Target lookup failed.");
       return;
@@ -1918,6 +1919,25 @@ async function changeTargetPage(direction) {
   targetPageIndex = nextPage;
   renderTargetPage();
   setText("targetStatus", `Showing target page ${targetPageIndex + 1}.`);
+}
+
+async function ensureTargetPoolSize(minCount) {
+  let attempts = 0;
+  let stagnant = 0;
+
+  while (targetResultPool.length < minCount && attempts < TARGET_BATCH_ATTEMPT_LIMIT && stagnant < 4) {
+    const before = targetResultPool.length;
+    appendUniqueTargets(await loadTargetFinderBatch());
+    attempts++;
+
+    if (targetResultPool.length === before) {
+      stagnant++;
+    } else {
+      stagnant = 0;
+    }
+  }
+
+  return targetResultPool.length;
 }
 
 async function filterSearchTargets(targets) {
@@ -2004,14 +2024,14 @@ function filterTargetsByViewerFairFight(targets) {
 
   return targets.filter(target => {
     const fairFight = Number(target.bsp?.fair_fight);
-    const stats = getTargetEstimateValues(target);
+    const stats = getTargetEstimateValue(target);
     const ffMatches = !useFF || (Number.isFinite(fairFight) && fairFight >= minFF && fairFight <= maxFF);
-    const statMatches = !useStats || stats.some(value =>
-      value > 0 &&
-      (!minStats || value >= minStats) &&
-      (!maxStats || value <= maxStats)
+    const statMatches = !useStats || (
+      stats > 0 &&
+      (!minStats || stats >= minStats) &&
+      (!maxStats || stats <= maxStats)
     );
-    return ffMatches && statMatches && (!useStats || stats.length > 0);
+    return ffMatches && statMatches;
   });
 }
 
@@ -2316,15 +2336,17 @@ async function loadRecruiterCandidates() {
   const enriched = await enrichTargetsWithBSP(active);
   return enriched
     .filter(target => {
-      const stats = getTargetEstimateValues(target);
+      const stats = getRecruiterEstimateValue(target);
       if (!minStats && !maxStats) return true;
-      return stats.some(value =>
-        value > 0 &&
-        (!minStats || value >= minStats) &&
-        (!maxStats || value <= Math.max(minStats || 0, maxStats))
-      );
+      return stats > 0 &&
+        (!minStats || stats >= minStats) &&
+        (!maxStats || stats <= Math.max(minStats || 0, maxStats));
     })
     .slice(0, limit);
+}
+
+function getRecruiterEstimateValue(target) {
+  return parseNumberish(target.bsp?.tbs || target.bs_estimate || target.bss_public);
 }
 
 function getRecruiterSourceFairFightParams(minStats, maxStats) {
