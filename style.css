@@ -91,6 +91,23 @@ p{
   font-size:18px;
 }
 
+.dashboard-fold > .panel-title{
+  cursor:pointer;
+  list-style:none;
+}
+
+.dashboard-fold > .panel-title::-webkit-details-marker{
+  display:none;
+}
+
+.dashboard-fold > .panel-title::before{
+  content:"> ";
+}
+
+.dashboard-fold[open] > .panel-title::before{
+  content:"v ";
+}
+
 .panel-content{
   padding:14px;
   line-height:1.7;
