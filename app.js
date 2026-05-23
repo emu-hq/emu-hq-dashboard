@@ -815,6 +815,12 @@ async function calculateBattleStatGains(days, label) {
         <td>${escapeHtml(formatGainList(event.gains.map(item => ({ name: titleCase(item.stat), gain: item.amount }))))}</td>
       </tr>
     `).join("");
+    const sampleRows = gainedRows.length ? "" : (await loadTrainingLogSamples(from)).slice(0, 8).map(entry => `
+      <tr>
+        <td>${escapeHtml(formatDateTime(entry.timestamp))}</td>
+        <td>${escapeHtml(entry.text.slice(0, 220))}</td>
+      </tr>
+    `).join("");
 
     setHtml("battleGainsPanel", `
       <div class="data-table-wrap">
@@ -837,6 +843,16 @@ async function calculateBattleStatGains(days, label) {
           </table>
         </div>
       ` : ""}
+      ${sampleRows ? `
+        <div class="sub-title">RAW TRAINING LOG SAMPLES</div>
+        <p class="scan-line">These did not parse as gains yet. Send me one of these lines if the numbers are visible here.</p>
+        <div class="data-table-wrap">
+          <table class="data-table compact-table">
+            <thead><tr><th>Time</th><th>Raw log</th></tr></thead>
+            <tbody>${sampleRows}</tbody>
+          </table>
+        </div>
+      ` : ""}
     `);
   } catch (err) {
     setHtml("battleGainsPanel", `<span class="danger">Could not calculate gains from your event log. The key may need events access.</span>`);
@@ -852,8 +868,70 @@ function formatGainList(rows) {
 
 async function loadBattleStatGainEvents(fromTimestamp) {
   const to = Math.floor(Date.now() / 1000);
+  const all = [
+    ...await loadBattleStatGainLogEntries(fromTimestamp, to),
+    ...await loadBattleStatGainEventEntries(fromTimestamp, to)
+  ];
+
+  const deduped = [];
+  const seen = new Set();
+  all.sort((a, b) => b.timestamp - a.timestamp).forEach(event => {
+    const key = `${event.timestamp}:${event.text}:${event.gains.map(gain => `${gain.stat}:${gain.amount}`).join(",")}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(event);
+    }
+  });
+
+  return deduped;
+}
+
+async function loadBattleStatGainLogEntries(fromTimestamp, toTimestamp) {
+  const all = [];
+  let to = Number(toTimestamp || Math.floor(Date.now() / 1000));
+  const from = Math.max(0, Number(fromTimestamp || 0));
+
+  for (let page = 0; page < 20; page++) {
+    const pages = await loadUserLogPages(from, to);
+    const logs = pages.flatMap(data => normalizeLogResponse(data))
+      .filter(entry => entry.timestamp >= from && entry.timestamp <= to);
+    const gainLogs = logs
+      .map(entry => ({ ...entry, gains: parseBattleStatGains(entry) }))
+      .filter(entry => entry.gains.length);
+    all.push(...gainLogs);
+
+    if (logs.length < 100) break;
+    const nextTo = Math.min(...logs.map(entry => entry.timestamp)) - 1;
+    if (!Number.isFinite(nextTo) || nextTo >= to || nextTo < from) break;
+    to = nextTo;
+  }
+
+  return all;
+}
+
+async function loadUserLogPages(from, to) {
+  const params = {
+    from,
+    to,
+    limit: 100,
+    key: getTornApiKey()
+  };
+  const attempts = await Promise.allSettled([
+    getData(tornUrl(2, "/user/log", params)),
+    getData(tornUrl(2, "/user", { selections: "log", ...params })),
+    getData(tornUrl(1, "/user/", { selections: "log", ...params }))
+  ]);
+  const pages = attempts
+    .filter(result => result.status === "fulfilled")
+    .map(result => result.value);
+  if (!pages.length) throw new Error("No log endpoint available");
+  return pages;
+}
+
+async function loadBattleStatGainEventEntries(fromTimestamp, toTimestamp) {
   const all = [];
   let from = Math.max(0, Number(fromTimestamp || 0));
+  const to = Number(toTimestamp || Math.floor(Date.now() / 1000));
 
   for (let page = 0; page < 10; page++) {
     const data = await getData(tornUrl(2, "/user/events", {
@@ -867,7 +945,7 @@ async function loadBattleStatGainEvents(fromTimestamp) {
     const events = normalizeEventsResponse(data)
       .filter(event => event.timestamp >= Number(fromTimestamp || 0) && event.timestamp <= to);
     const gainEvents = events
-      .map(event => ({ ...event, gains: parseBattleStatGainsFromText(event.text) }))
+      .map(event => ({ ...event, gains: parseBattleStatGains(event) }))
       .filter(event => event.gains.length);
     all.push(...gainEvents);
 
@@ -878,6 +956,70 @@ async function loadBattleStatGainEvents(fromTimestamp) {
   }
 
   return all.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+async function loadTrainingLogSamples(fromTimestamp) {
+  const to = Math.floor(Date.now() / 1000);
+  const from = Math.max(0, Number(fromTimestamp || 0));
+  const samples = [];
+
+  try {
+    const logPages = await loadUserLogPages(from, to);
+    samples.push(...logPages.flatMap(data => normalizeLogResponse(data)));
+  } catch (err) {
+  }
+
+  try {
+    const eventData = await getData(tornUrl(2, "/user/events", {
+      from,
+      to,
+      limit: 100,
+      striptags: "false",
+      key: getTornApiKey()
+    }));
+    samples.push(...normalizeEventsResponse(eventData));
+  } catch (err) {
+  }
+
+  const keywords = /(gym|train|trained|gain|gained|strength|defen[cs]e|speed|dexterity|stat)/i;
+  const seen = new Set();
+  return samples
+    .filter(entry => keywords.test(entry.text))
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .filter(entry => {
+      const key = `${entry.timestamp}:${entry.text}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function normalizeLogResponse(data) {
+  const raw = data?.log || data?.logs || data?.entries || data?.data || [];
+  const entries = Array.isArray(raw)
+    ? raw
+    : Object.entries(raw).map(([key, value]) => ({ id: key, ...(value || {}) }));
+
+  return entries.map(item => {
+    const text = decodeHtmlEntities(stripTags([
+      item.title,
+      item.log,
+      item.text,
+      item.message,
+      item.description,
+      item.event,
+      item.type,
+      item.category,
+      item.data ? JSON.stringify(item.data) : ""
+    ].filter(Boolean).join(" ")));
+    return {
+      id: item.id,
+      timestamp: Number(item.timestamp || item.time || item.created || item.created_at || 0),
+      text,
+      raw: item,
+      source: "log"
+    };
+  }).filter(event => event.timestamp && event.text);
 }
 
 function normalizeEventsResponse(data) {
@@ -893,9 +1035,25 @@ function normalizeEventsResponse(data) {
     return {
       id: item.id,
       timestamp: Number(item.timestamp || item.time || item.created || item.created_at || 0),
-      text
+      text,
+      raw: item,
+      source: "event"
     };
   }).filter(event => event.timestamp && event.text);
+}
+
+function parseBattleStatGains(entry) {
+  const gains = [
+    ...parseBattleStatGainsFromObject(entry.raw),
+    ...parseBattleStatGainsFromText(entry.text)
+  ];
+  const seen = new Set();
+  return gains.filter(gain => {
+    const key = `${gain.stat}:${gain.amount}`;
+    if (!gain.stat || gain.amount <= 0 || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function parseBattleStatGainsFromText(text) {
@@ -903,7 +1061,7 @@ function parseBattleStatGainsFromText(text) {
   const gains = [];
   const seen = new Set();
   const statPattern = "(strength|defen[cs]e|speed|dexterity)";
-  const amountPattern = "([\\d,.]+)";
+  const amountPattern = "([+\\-]?[\\d,.]+)";
   const patterns = [
     new RegExp(`${statPattern}[^.]{0,80}?(?:increased|gained|gain|grew|raised)[^.]{0,40}?(?:by\\s*)?${amountPattern}`, "gi"),
     new RegExp(`(?:increased|gained|gain|grew|raised)[^.]{0,40}?(?:your\\s*)?${statPattern}[^.]{0,40}?(?:by\\s*)?${amountPattern}`, "gi"),
@@ -925,6 +1083,37 @@ function parseBattleStatGainsFromText(text) {
     }
   }
 
+  return gains;
+}
+
+function parseBattleStatGainsFromObject(value) {
+  const gains = [];
+
+  function walk(node, path = []) {
+    if (!node || typeof node !== "object") return;
+    Object.entries(node).forEach(([key, item]) => {
+      const stat = normalizeBattleStatName(key) || normalizeBattleStatName(path[path.length - 1]);
+      const lowerKey = String(key).toLowerCase();
+      if (
+        stat &&
+        Number.isFinite(Number(item)) &&
+        /(gain|gained|increase|amount|value|change|delta|new|stat)/i.test(lowerKey)
+      ) {
+        gains.push({ stat, amount: Math.max(0, Math.round(Number(item))) });
+        return;
+      }
+      if (item && typeof item === "object") {
+        const itemStat = normalizeBattleStatName(item.stat || item.name || item.type || key);
+        const amount = item.gain ?? item.gained ?? item.increase ?? item.amount ?? item.value ?? item.change ?? item.delta;
+        if (itemStat && Number.isFinite(Number(amount))) {
+          gains.push({ stat: itemStat, amount: Math.max(0, Math.round(Number(amount))) });
+        }
+        walk(item, [...path, key]);
+      }
+    });
+  }
+
+  walk(value);
   return gains;
 }
 
