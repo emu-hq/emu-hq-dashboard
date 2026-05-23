@@ -13,9 +13,10 @@ const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.pn
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const BATTLE_HISTORY_KEY = "emu.battleStatHistory.v1";
-const TORN_LOG_PAGE_LIMIT = 1000;
+const TORN_LOG_PAGE_LIMIT = 100;
 const MED_OUT_WINDOW_MS = 15 * 60 * 1000;
 let battleGainsScanInFlight = false;
+let battleGainsLastStartedAt = 0;
 const CRIME_SKILL_NAMES = {
   0: "Search for Cash",
   1: "Bootlegging",
@@ -789,15 +790,16 @@ async function calculateBattleStatGains(days, label) {
     return;
   }
 
-  if (battleGainsScanInFlight) {
-    setHtml("battleGainsPanel", `<span class="warning">A gains scan is already running. Let it finish before starting another one.</span>`);
+  const nowMs = Date.now();
+  if (battleGainsScanInFlight || nowMs - battleGainsLastStartedAt < 2500) {
     return;
   }
+  battleGainsScanInFlight = true;
+  battleGainsLastStartedAt = nowMs;
+  setBattleGainsButtonsDisabled(true);
 
   const target = document.getElementById("battleGainsPanel");
   if (target) target.innerHTML = "Calculating gains...";
-  setBattleGainsButtonsDisabled(true);
-  battleGainsScanInFlight = true;
 
   try {
     const from = Math.floor(Date.now() / 1000) - Math.round(Number(days) * 86400);
@@ -867,14 +869,17 @@ async function calculateBattleStatGains(days, label) {
   } catch (err) {
     setHtml("battleGainsPanel", `<span class="danger">Could not calculate gains: ${escapeHtml(err.message || "Unknown API/log error")}.</span>`);
   } finally {
-    battleGainsScanInFlight = false;
-    setBattleGainsButtonsDisabled(false);
+    window.setTimeout(() => {
+      battleGainsScanInFlight = false;
+      setBattleGainsButtonsDisabled(false);
+    }, 1000);
   }
 }
 
 function setBattleGainsButtonsDisabled(disabled) {
   document.querySelectorAll("[data-battle-gain-button='true']").forEach(button => {
     button.disabled = disabled;
+    button.classList.toggle("locked-link", disabled);
   });
 }
 
@@ -919,12 +924,13 @@ async function loadBattleStatGainLogEntries(fromTimestamp, toTimestamp) {
   const scanned = [];
   let to = Number(toTimestamp || Math.floor(Date.now() / 1000));
   const from = Math.max(0, Number(fromTimestamp || 0));
+  const logRoute = await resolveUserLogRoute(from, to);
 
   const pageSignatures = new Set();
 
-  for (let page = 0; page < 30; page++) {
-    const pages = await loadUserLogPages(from, to);
-    const logs = pages.flatMap(data => normalizeLogResponse(data))
+  for (let page = 0; page < 80; page++) {
+    const data = await loadUserLogPage(logRoute, from, to);
+    const logs = normalizeLogResponse(data)
       .filter(entry => entry.timestamp >= from && entry.timestamp <= to);
     if (!logs.length) break;
     scanned.push(...logs);
@@ -949,26 +955,30 @@ async function loadBattleStatGainLogEntries(fromTimestamp, toTimestamp) {
   return all;
 }
 
-async function loadUserLogPages(from, to) {
+async function resolveUserLogRoute(from, to) {
+  const routes = ["v2-user-log", "v2-user-selection-log", "v1-user-selection-log"];
+  const attempts = await Promise.allSettled(routes.map(async route => {
+    const data = await loadUserLogPage(route, from, to);
+    return { route, count: normalizeLogResponse(data).length };
+  }));
+  const best = attempts
+    .filter(result => result.status === "fulfilled")
+    .map(result => result.value)
+    .sort((a, b) => b.count - a.count)[0];
+  if (!best?.count) throw new Error("No log endpoint available");
+  return best.route;
+}
+
+function loadUserLogPage(route, from, to) {
   const params = {
     from,
     to,
     limit: TORN_LOG_PAGE_LIMIT,
     key: getTornApiKey()
   };
-  const attempts = await Promise.allSettled([
-    getData(tornUrl(2, "/user/log", params)),
-    getData(tornUrl(2, "/user", { selections: "log", ...params })),
-    getData(tornUrl(1, "/user/", { selections: "log", ...params }))
-  ]);
-  const pages = attempts
-    .filter(result => result.status === "fulfilled")
-    .map(result => result.value);
-  if (!pages.length) throw new Error("No log endpoint available");
-  const best = pages
-    .map(data => ({ data, count: normalizeLogResponse(data).length }))
-    .sort((a, b) => b.count - a.count)[0];
-  return best?.count ? [best.data] : pages.slice(0, 1);
+  if (route === "v2-user-log") return getData(tornUrl(2, "/user/log", params));
+  if (route === "v2-user-selection-log") return getData(tornUrl(2, "/user", { selections: "log", ...params }));
+  return getData(tornUrl(1, "/user/", { selections: "log", ...params }));
 }
 
 async function loadBattleStatGainEventEntries(fromTimestamp, toTimestamp) {
@@ -1010,8 +1020,9 @@ async function loadTrainingLogSamples(fromTimestamp) {
   const samples = [];
 
   try {
-    const logPages = await loadUserLogPages(from, to);
-    samples.push(...logPages.flatMap(data => normalizeLogResponse(data)));
+    const route = await resolveUserLogRoute(from, to);
+    const logData = await loadUserLogPage(route, from, to);
+    samples.push(...normalizeLogResponse(logData));
   } catch (err) {
   }
 
