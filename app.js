@@ -15,6 +15,7 @@ const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const BATTLE_HISTORY_KEY = "emu.battleStatHistory.v1";
 const TORN_LOG_PAGE_LIMIT = 1000;
 const MED_OUT_WINDOW_MS = 15 * 60 * 1000;
+let battleGainsScanInFlight = false;
 const CRIME_SKILL_NAMES = {
   0: "Search for Cash",
   1: "Bootlegging",
@@ -755,11 +756,10 @@ function renderDashboardStats(data) {
   setHtml("dashboardBattleStatsPanel", hasBattle
     ? `
       <div class="tool-actions">
-        <button type="button" class="save-btn" onclick="calculateBattleStatGains(1, '24 hours')">24H GAINS</button>
-        <button type="button" class="save-btn" onclick="calculateBattleStatGains(7, '1 week')">1W GAINS</button>
-        <button type="button" class="save-btn" onclick="calculateBattleStatGains(30, '1 month')">1M GAINS</button>
-        <button type="button" class="save-btn" onclick="calculateBattleStatGains(183, '6 months')">6M GAINS</button>
-        <button type="button" class="save-btn" onclick="calculateBattleStatGains(365, '1 year')">1Y GAINS</button>
+        <button type="button" class="save-btn" data-battle-gain-button="true" onclick="calculateBattleStatGains(1, '24 hours')">24H GAINS</button>
+        <button type="button" class="save-btn" data-battle-gain-button="true" onclick="calculateBattleStatGains(7, '1 week')">1W GAINS</button>
+        <button type="button" class="save-btn" data-battle-gain-button="true" onclick="calculateBattleStatGains(30, '1 month')">1M GAINS</button>
+        <button type="button" class="save-btn" data-battle-gain-button="true" onclick="calculateBattleStatGains(183, '6 months')">6M GAINS</button>
       </div>
       <div id="battleGainsPanel" class="scan-line">Select a period to calculate gains.</div>
       <div class="jobpoints-grid">
@@ -789,8 +789,15 @@ async function calculateBattleStatGains(days, label) {
     return;
   }
 
+  if (battleGainsScanInFlight) {
+    setHtml("battleGainsPanel", `<span class="warning">A gains scan is already running. Let it finish before starting another one.</span>`);
+    return;
+  }
+
   const target = document.getElementById("battleGainsPanel");
   if (target) target.innerHTML = "Calculating gains...";
+  setBattleGainsButtonsDisabled(true);
+  battleGainsScanInFlight = true;
 
   try {
     const from = Math.floor(Date.now() / 1000) - Math.round(Number(days) * 86400);
@@ -858,8 +865,17 @@ async function calculateBattleStatGains(days, label) {
       ` : ""}
     `);
   } catch (err) {
-    setHtml("battleGainsPanel", `<span class="danger">Could not calculate gains from your event log. The key may need events access.</span>`);
+    setHtml("battleGainsPanel", `<span class="danger">Could not calculate gains: ${escapeHtml(err.message || "Unknown API/log error")}.</span>`);
+  } finally {
+    battleGainsScanInFlight = false;
+    setBattleGainsButtonsDisabled(false);
   }
+}
+
+function setBattleGainsButtonsDisabled(disabled) {
+  document.querySelectorAll("[data-battle-gain-button='true']").forEach(button => {
+    button.disabled = disabled;
+  });
 }
 
 function formatGainList(rows) {
@@ -871,8 +887,17 @@ function formatGainList(rows) {
 
 async function loadBattleStatGainEvents(fromTimestamp) {
   const to = Math.floor(Date.now() / 1000);
-  const logEntries = await loadBattleStatGainLogEntries(fromTimestamp, to);
-  const eventEntries = await loadBattleStatGainEventEntries(fromTimestamp, to);
+  const [logResult, eventResult] = await Promise.allSettled([
+    loadBattleStatGainLogEntries(fromTimestamp, to),
+    loadBattleStatGainEventEntries(fromTimestamp, to)
+  ]);
+  const logEntries = logResult.status === "fulfilled" ? logResult.value : [];
+  const eventEntries = eventResult.status === "fulfilled" ? eventResult.value : [];
+  if (logResult.status === "rejected") logEntries.coverage = { count: 0, error: logResult.reason?.message || "Log unavailable" };
+  if (eventResult.status === "rejected") eventEntries.coverage = { count: 0, error: eventResult.reason?.message || "Events unavailable" };
+  if (logResult.status === "rejected" && eventResult.status === "rejected") {
+    throw new Error(`${logEntries.coverage.error} | ${eventEntries.coverage.error}`);
+  }
   const all = [...logEntries, ...eventEntries];
 
   const deduped = [];
@@ -1081,7 +1106,7 @@ function parseBattleStatGainsFromText(text) {
   const clean = decodeHtmlEntities(stripTags(text)).replace(/\s+/g, " ").trim();
   const gains = [];
   const seen = new Set();
-  const statPattern = "(strength|defen[cs]e|speed|dexterity)";
+  const statPattern = "(strength|str|defen[cs]e|def|speed|spd|dexterity|dex)";
   const amountPattern = "([+\\-]?[\\d,.]+)";
   const patterns = [
     new RegExp(`${statPattern}[^.]{0,80}?(?:increased|gained|gain|grew|raised)[^.]{0,40}?(?:by\\s*)?${amountPattern}`, "gi"),
@@ -1125,7 +1150,7 @@ function parseBattleStatGainsFromObject(value) {
       }
       if (item && typeof item === "object") {
         const itemStat = normalizeBattleStatName(item.stat || item.name || item.type || key);
-        const amount = item.gain ?? item.gained ?? item.increase ?? item.amount ?? item.value ?? item.change ?? item.delta;
+        const amount = getObjectGainAmount(item);
         if (itemStat && Number.isFinite(Number(amount))) {
           gains.push({ stat: itemStat, amount: Math.max(0, Math.round(Number(amount))) });
         }
@@ -1138,12 +1163,24 @@ function parseBattleStatGainsFromObject(value) {
   return gains;
 }
 
+function getObjectGainAmount(item) {
+  const explicit = item.gain ?? item.gained ?? item.increase ?? item.increased ?? item.change ?? item.delta ?? item.difference ?? item.diff;
+  if (Number.isFinite(Number(explicit))) return Number(explicit);
+  if (Number.isFinite(Number(item.after)) && Number.isFinite(Number(item.before))) {
+    return Number(item.after) - Number(item.before);
+  }
+  if (Number.isFinite(Number(item.new)) && Number.isFinite(Number(item.old))) {
+    return Number(item.new) - Number(item.old);
+  }
+  return null;
+}
+
 function normalizeBattleStatName(value) {
-  const stat = String(value || "").toLowerCase();
-  if (stat.startsWith("str")) return "strength";
-  if (stat.startsWith("def")) return "defense";
-  if (stat.startsWith("spe")) return "speed";
-  if (stat.startsWith("dex")) return "dexterity";
+  const stat = String(value || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (stat === "str" || stat.startsWith("strength")) return "strength";
+  if (stat === "def" || stat.startsWith("defense") || stat.startsWith("defence")) return "defense";
+  if (stat === "spd" || stat.startsWith("speed")) return "speed";
+  if (stat === "dex" || stat.startsWith("dexterity")) return "dexterity";
   return "";
 }
 
@@ -1191,6 +1228,7 @@ function formatBattleGainCoverage(coverage, requestedFrom) {
   const count = Number(coverage?.count || 0);
   const oldest = Number(coverage?.oldest || 0);
   const requested = Number(requestedFrom || coverage?.requestedFrom || 0);
+  if (coverage?.error) return coverage.error;
   if (!count) return "No matching log/event records returned.";
   const reached = oldest && requested && oldest <= requested;
   const start = oldest ? formatDateTime(oldest) : "unknown";
