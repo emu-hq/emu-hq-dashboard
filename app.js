@@ -13,6 +13,7 @@ const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.pn
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const BATTLE_HISTORY_KEY = "emu.battleStatHistory.v1";
+const TORN_LOG_PAGE_LIMIT = 1000;
 const MED_OUT_WINDOW_MS = 15 * 60 * 1000;
 const CRIME_SKILL_NAMES = {
   0: "Search for Cash",
@@ -794,6 +795,7 @@ async function calculateBattleStatGains(days, label) {
   try {
     const from = Math.floor(Date.now() / 1000) - Math.round(Number(days) * 86400);
     const events = await loadBattleStatGainEvents(from);
+    const coverage = events.coverage || {};
     const totals = sumBattleStatGainEvents(events);
     const rows = [
       ["strength", "Strength"],
@@ -829,7 +831,8 @@ async function calculateBattleStatGains(days, label) {
           <tbody>
             ${gainRowsHtml}
             ${gainedRows.length ? `<tr><td>Total gained</td><td>${escapeHtml(formatNumber(totalGain))}</td></tr>` : ""}
-            <tr><td>Source</td><td>${escapeHtml(`${events.length} Torn event${events.length === 1 ? "" : "s"} scanned with stat gains`)}</td></tr>
+            <tr><td>Source</td><td>${escapeHtml(`${events.length} Torn log/event${events.length === 1 ? "" : "s"} with stat gains`)}</td></tr>
+            <tr><td>Scan coverage</td><td>${escapeHtml(formatBattleGainCoverage(coverage, from))}</td></tr>
           </tbody>
         </table>
       </div>
@@ -868,10 +871,9 @@ function formatGainList(rows) {
 
 async function loadBattleStatGainEvents(fromTimestamp) {
   const to = Math.floor(Date.now() / 1000);
-  const all = [
-    ...await loadBattleStatGainLogEntries(fromTimestamp, to),
-    ...await loadBattleStatGainEventEntries(fromTimestamp, to)
-  ];
+  const logEntries = await loadBattleStatGainLogEntries(fromTimestamp, to);
+  const eventEntries = await loadBattleStatGainEventEntries(fromTimestamp, to);
+  const all = [...logEntries, ...eventEntries];
 
   const deduped = [];
   const seen = new Set();
@@ -883,29 +885,42 @@ async function loadBattleStatGainEvents(fromTimestamp) {
     }
   });
 
+  deduped.coverage = mergeLogCoverage([logEntries.coverage, eventEntries.coverage], fromTimestamp);
   return deduped;
 }
 
 async function loadBattleStatGainLogEntries(fromTimestamp, toTimestamp) {
   const all = [];
+  const scanned = [];
   let to = Number(toTimestamp || Math.floor(Date.now() / 1000));
   const from = Math.max(0, Number(fromTimestamp || 0));
 
-  for (let page = 0; page < 20; page++) {
+  const pageSignatures = new Set();
+
+  for (let page = 0; page < 30; page++) {
     const pages = await loadUserLogPages(from, to);
     const logs = pages.flatMap(data => normalizeLogResponse(data))
       .filter(entry => entry.timestamp >= from && entry.timestamp <= to);
+    if (!logs.length) break;
+    scanned.push(...logs);
+
+    const oldest = Math.min(...logs.map(entry => entry.timestamp));
+    const newest = Math.max(...logs.map(entry => entry.timestamp));
+    const signature = `${oldest}:${newest}:${logs.length}`;
+    if (pageSignatures.has(signature)) break;
+    pageSignatures.add(signature);
+
     const gainLogs = logs
       .map(entry => ({ ...entry, gains: parseBattleStatGains(entry) }))
       .filter(entry => entry.gains.length);
     all.push(...gainLogs);
 
-    if (logs.length < 100) break;
-    const nextTo = Math.min(...logs.map(entry => entry.timestamp)) - 1;
+    const nextTo = oldest - 1;
     if (!Number.isFinite(nextTo) || nextTo >= to || nextTo < from) break;
     to = nextTo;
   }
 
+  all.coverage = calculateLogCoverage(scanned, fromTimestamp);
   return all;
 }
 
@@ -913,7 +928,7 @@ async function loadUserLogPages(from, to) {
   const params = {
     from,
     to,
-    limit: 100,
+    limit: TORN_LOG_PAGE_LIMIT,
     key: getTornApiKey()
   };
   const attempts = await Promise.allSettled([
@@ -925,11 +940,15 @@ async function loadUserLogPages(from, to) {
     .filter(result => result.status === "fulfilled")
     .map(result => result.value);
   if (!pages.length) throw new Error("No log endpoint available");
-  return pages;
+  const best = pages
+    .map(data => ({ data, count: normalizeLogResponse(data).length }))
+    .sort((a, b) => b.count - a.count)[0];
+  return best?.count ? [best.data] : pages.slice(0, 1);
 }
 
 async function loadBattleStatGainEventEntries(fromTimestamp, toTimestamp) {
   const all = [];
+  const scanned = [];
   let from = Math.max(0, Number(fromTimestamp || 0));
   const to = Number(toTimestamp || Math.floor(Date.now() / 1000));
 
@@ -937,24 +956,26 @@ async function loadBattleStatGainEventEntries(fromTimestamp, toTimestamp) {
     const data = await getData(tornUrl(2, "/user/events", {
       from,
       to,
-      limit: 100,
+      limit: TORN_LOG_PAGE_LIMIT,
       sort: "ASC",
       striptags: "false",
       key: getTornApiKey()
     }));
     const events = normalizeEventsResponse(data)
       .filter(event => event.timestamp >= Number(fromTimestamp || 0) && event.timestamp <= to);
+    scanned.push(...events);
     const gainEvents = events
       .map(event => ({ ...event, gains: parseBattleStatGains(event) }))
       .filter(event => event.gains.length);
     all.push(...gainEvents);
 
-    if (events.length < 100) break;
+    if (events.length < TORN_LOG_PAGE_LIMIT) break;
     const nextFrom = Math.max(...events.map(event => event.timestamp)) + 1;
     if (!Number.isFinite(nextFrom) || nextFrom <= from) break;
     from = nextFrom;
   }
 
+  all.coverage = calculateLogCoverage(scanned, fromTimestamp);
   return all.sort((a, b) => b.timestamp - a.timestamp);
 }
 
@@ -973,7 +994,7 @@ async function loadTrainingLogSamples(fromTimestamp) {
     const eventData = await getData(tornUrl(2, "/user/events", {
       from,
       to,
-      limit: 100,
+      limit: TORN_LOG_PAGE_LIMIT,
       striptags: "false",
       key: getTornApiKey()
     }));
@@ -1139,6 +1160,43 @@ function sumBattleStatGainEvents(events) {
     });
     return totals;
   }, { strength: 0, defense: 0, speed: 0, dexterity: 0 });
+}
+
+function calculateLogCoverage(entries, requestedFrom) {
+  const timestamps = entries
+    .map(entry => Number(entry.timestamp || 0))
+    .filter(Boolean);
+  return {
+    count: entries.length,
+    requestedFrom: Number(requestedFrom || 0),
+    oldest: timestamps.length ? Math.min(...timestamps) : 0,
+    newest: timestamps.length ? Math.max(...timestamps) : 0
+  };
+}
+
+function mergeLogCoverage(coverages, requestedFrom) {
+  const usable = coverages.filter(item => item && Number(item.count || 0));
+  if (!usable.length) return { count: 0, requestedFrom };
+  const oldestValues = usable.map(item => Number(item.oldest || 0)).filter(Boolean);
+  const newestValues = usable.map(item => Number(item.newest || 0)).filter(Boolean);
+  return {
+    count: usable.reduce((sum, item) => sum + Number(item.count || 0), 0),
+    requestedFrom: Number(requestedFrom || 0),
+    oldest: oldestValues.length ? Math.min(...oldestValues) : 0,
+    newest: newestValues.length ? Math.max(...newestValues) : 0
+  };
+}
+
+function formatBattleGainCoverage(coverage, requestedFrom) {
+  const count = Number(coverage?.count || 0);
+  const oldest = Number(coverage?.oldest || 0);
+  const requested = Number(requestedFrom || coverage?.requestedFrom || 0);
+  if (!count) return "No matching log/event records returned.";
+  const reached = oldest && requested && oldest <= requested;
+  const start = oldest ? formatDateTime(oldest) : "unknown";
+  return reached
+    ? `${formatNumber(count)} records scanned back to ${start}.`
+    : `${formatNumber(count)} records scanned; oldest returned was ${start}, so Torn did not provide the full selected period.`;
 }
 
 function stripTags(value) {
