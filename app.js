@@ -346,28 +346,40 @@ async function loadOwnDashboardStats() {
 
 async function loadUserBattleStatsData() {
   try {
-    return await getData(tornUrl(2, "/user/battlestats", { key: getTornApiKey() }));
+    return await getData(tornUrl(2, "/user", { selections: "battlestats", key: getTornApiKey() }));
   } catch (err) {
-    return getData(tornUrl(1, "/user/", { selections: "battlestats", key: getTornApiKey() }));
+    try {
+      return await getData(tornUrl(2, "/user/battlestats", { key: getTornApiKey() }));
+    } catch (fallbackErr) {
+      return getData(tornUrl(1, "/user/", { selections: "battlestats", key: getTornApiKey() }));
+    }
   }
 }
 
 async function loadUserWorkStatsData() {
   try {
-    return await getData(tornUrl(2, "/user/workstats", { key: getTornApiKey() }));
+    return await getData(tornUrl(2, "/user", { selections: "workstats", key: getTornApiKey() }));
   } catch (err) {
-    return getData(tornUrl(1, "/user/", { selections: "workstats", key: getTornApiKey() }));
+    try {
+      return await getData(tornUrl(2, "/user/workstats", { key: getTornApiKey() }));
+    } catch (fallbackErr) {
+      return getData(tornUrl(1, "/user/", { selections: "workstats", key: getTornApiKey() }));
+    }
   }
 }
 
 async function loadUserSkillsData() {
   try {
-    return await getData(tornUrl(2, "/user/skills", { key: getTornApiKey() }));
+    return await getData(tornUrl(2, "/user", { selections: "skills", key: getTornApiKey() }));
   } catch (err) {
     try {
-      return await getData(tornUrl(1, "/user/", { selections: "skills", key: getTornApiKey() }));
-    } catch (fallbackErr) {
-      return null;
+      return await getData(tornUrl(2, "/user/skills", { key: getTornApiKey() }));
+    } catch (secondErr) {
+      try {
+        return await getData(tornUrl(1, "/user/", { selections: "skills", key: getTornApiKey() }));
+      } catch (fallbackErr) {
+        return null;
+      }
     }
   }
 }
@@ -403,11 +415,13 @@ async function loadFactionData() {
 }
 
 async function loadDashboardExtras(sequence) {
-  const [honorsResult, jobPointsResult, usageResult, statsResult] = await Promise.allSettled([
+  const [honorsResult, jobPointsResult, usageResult, battleResult, workResult, skillsResult] = await Promise.allSettled([
     loadUserHonorsData(),
     loadUserJobPointsData(),
     loadOwnUsageInsights(),
-    loadOwnDashboardStats()
+    loadUserBattleStatsData(),
+    loadUserWorkStatsData(),
+    loadUserSkillsData()
   ]);
 
   if (sequence !== loadSequence) return;
@@ -428,12 +442,11 @@ async function loadDashboardExtras(sequence) {
     setHtml("dashboardUsagePanel", emptyMessage("Xanax and refill averages unavailable for this key."));
   }
 
-  if (statsResult.status === "fulfilled") {
-    renderDashboardStats(statsResult.value);
-  } else {
-    setHtml("dashboardBattleStatsPanel", emptyMessage("Battle stats unavailable for this key."));
-    setHtml("dashboardSkillsPanel", emptyMessage("Work stats and skills unavailable for this key."));
-  }
+  renderDashboardStats({
+    battle: battleResult.status === "fulfilled" ? battleResult.value : null,
+    work: workResult.status === "fulfilled" ? workResult.value : null,
+    skills: skillsResult.status === "fulfilled" ? skillsResult.value : null
+  });
 }
 
 function loadUserHonors(data) {
@@ -674,34 +687,38 @@ function renderDashboardStats(data) {
   const battle = normalizeBattleStats(data.battle);
   const work = normalizeWorkStats(data.work);
   const skills = normalizeSkillStats(data.skills);
+  const hasBattle = battle.total > 0 || battle.strength > 0 || battle.defense > 0 || battle.speed > 0 || battle.dexterity > 0;
+  const hasWork = work.manual > 0 || work.intelligence > 0 || work.endurance > 0;
 
-  setHtml("dashboardBattleStatsPanel", `
-    <div class="jobpoints-grid">
-      ${statBlockTable("BATTLE STATS", [
-        ["Strength", battle.strength],
-        ["Defense", battle.defense],
-        ["Speed", battle.speed],
-        ["Dexterity", battle.dexterity],
-        ["Total", battle.total],
-        ["Efficient Score", battle.score]
-      ])}
-      ${statBlockTable("EFFECTIVE STATS", [
-        ["Strength", battle.effectiveStrength],
-        ["Defense", battle.effectiveDefense],
-        ["Speed", battle.effectiveSpeed],
-        ["Dexterity", battle.effectiveDexterity],
-        ["Total", battle.effectiveTotal]
-      ])}
-    </div>
-  `);
+  setHtml("dashboardBattleStatsPanel", hasBattle
+    ? `
+      <div class="jobpoints-grid">
+        ${statBlockTable("BATTLE STATS", [
+          ["Strength", battle.strength],
+          ["Defense", battle.defense],
+          ["Speed", battle.speed],
+          ["Dexterity", battle.dexterity],
+          ["Total", battle.total],
+          ["Efficient Score", battle.score]
+        ])}
+        ${statBlockTable("EFFECTIVE STATS", [
+          ["Strength", battle.effectiveStrength],
+          ["Defense", battle.effectiveDefense],
+          ["Speed", battle.effectiveSpeed],
+          ["Dexterity", battle.effectiveDexterity],
+          ["Total", battle.effectiveTotal]
+        ])}
+      </div>
+    `
+    : emptyMessage("Battle stats unavailable. The API key may need battlestats access."));
 
   setHtml("dashboardSkillsPanel", `
     <div class="jobpoints-grid">
-      ${statBlockTable("WORK STATS", [
+      ${hasWork ? statBlockTable("WORK STATS", [
         ["Manual Labor", work.manual],
         ["Intelligence", work.intelligence],
         ["Endurance", work.endurance]
-      ])}
+      ]) : emptyMessage("Work stats unavailable for this key.")}
       ${statBlockTable("SKILLS / CRIMES", skills.length ? skills : [["Unavailable", "-"]])}
     </div>
   `);
