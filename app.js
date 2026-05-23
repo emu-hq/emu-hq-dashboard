@@ -792,51 +792,29 @@ async function calculateBattleStatGains(days, label) {
   if (target) target.innerHTML = "Calculating gains...";
 
   try {
-    const timestamp = Math.floor(Date.now() / 1000) - Math.round(Number(days) * 86400);
-    const [currentData, previousData] = await Promise.all([
-      loadUserBattleStatsData(),
-      loadHistoricalBattleStatsData(timestamp)
-    ]);
-    const current = normalizeBattleStats(currentData);
-    let previous = normalizeBattleStats(previousData);
-    let sourceNote = "Torn historical API";
-    let noHistory = false;
-
-    if (previous.total === current.total) {
-      const localPrevious = getBattleStatsSnapshotBefore(timestamp);
-      if (localPrevious && localPrevious.total !== current.total) {
-        previous = localPrevious;
-        sourceNote = `EMU local snapshot from ${formatDateTime(localPrevious.timestamp)}`;
-      } else {
-        noHistory = true;
-        sourceNote = localPrevious
-          ? `EMU local snapshot from ${formatDateTime(localPrevious.timestamp)} matched current stats`
-          : "Torn returned current stats for the old timestamp and EMU has no older local snapshot yet";
-      }
-    }
-
+    const from = Math.floor(Date.now() / 1000) - Math.round(Number(days) * 86400);
+    const events = await loadBattleStatGainEvents(from);
+    const totals = sumBattleStatGainEvents(events);
     const rows = [
       ["strength", "Strength"],
       ["defense", "Defense"],
       ["speed", "Speed"],
       ["dexterity", "Dexterity"]
-    ].map(([key, name]) => {
-      const gain = Math.max(0, Number(current[key] || 0) - Number(previous[key] || 0));
-      return { name, gain };
-    });
+    ].map(([key, name]) => ({ name, gain: totals[key] || 0 }));
     const totalGain = rows.reduce((sum, row) => sum + row.gain, 0);
     const gainedRows = rows.filter(row => row.gain > 0);
     const gainSentence = gainedRows.length
       ? `You have gained ${formatGainList(gainedRows)} over the period of ${label}. You have gained a total of ${formatNumber(totalGain)} stats.`
-      : noHistory
-        ? `EMU has started tracking your battle stats now. Torn did not return an older battle stat snapshot for ${label}, so gains will show once EMU has saved enough history.`
-        : `No battle stat gains were detected over the period of ${label}.`;
-    const diagnosticRow = gainedRows.length
-      ? ""
-      : `<tr><td>Current total / previous total</td><td>${escapeHtml(`${formatNumber(current.total)} / ${formatNumber(previous.total)}`)}</td></tr>`;
+      : `No battle stat gain events were found over the period of ${label}.`;
     const gainRowsHtml = gainedRows.length
       ? gainedRows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(formatNumber(row.gain))}</td></tr>`).join("")
       : `<tr><td colspan="2" class="muted">No gains detected for this period.</td></tr>`;
+    const recentRows = events.slice(0, 6).map(event => `
+      <tr>
+        <td>${escapeHtml(formatDateTime(event.timestamp))}</td>
+        <td>${escapeHtml(formatGainList(event.gains.map(item => ({ name: titleCase(item.stat), gain: item.amount }))))}</td>
+      </tr>
+    `).join("");
 
     setHtml("battleGainsPanel", `
       <div class="data-table-wrap">
@@ -845,15 +823,23 @@ async function calculateBattleStatGains(days, label) {
           <tbody>
             ${gainRowsHtml}
             ${gainedRows.length ? `<tr><td>Total gained</td><td>${escapeHtml(formatNumber(totalGain))}</td></tr>` : ""}
-            ${diagnosticRow}
-            <tr><td>Source</td><td>${escapeHtml(sourceNote)}</td></tr>
+            <tr><td>Source</td><td>${escapeHtml(`${events.length} Torn event${events.length === 1 ? "" : "s"} scanned with stat gains`)}</td></tr>
           </tbody>
         </table>
       </div>
       <p class="scan-line">${escapeHtml(gainSentence)}</p>
+      ${recentRows ? `
+        <div class="sub-title">RECENT GAIN EVENTS</div>
+        <div class="data-table-wrap">
+          <table class="data-table compact-table">
+            <thead><tr><th>Time</th><th>Gains</th></tr></thead>
+            <tbody>${recentRows}</tbody>
+          </table>
+        </div>
+      ` : ""}
     `);
   } catch (err) {
-    setHtml("battleGainsPanel", `<span class="danger">Could not calculate gains. The key may need battlestats access or Torn may not have that snapshot.</span>`);
+    setHtml("battleGainsPanel", `<span class="danger">Could not calculate gains from your event log. The key may need events access.</span>`);
   }
 }
 
@@ -862,6 +848,112 @@ function formatGainList(rows) {
   if (parts.length <= 1) return parts[0] || "0 stats";
   if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+async function loadBattleStatGainEvents(fromTimestamp) {
+  const to = Math.floor(Date.now() / 1000);
+  const all = [];
+  let from = Math.max(0, Number(fromTimestamp || 0));
+
+  for (let page = 0; page < 10; page++) {
+    const data = await getData(tornUrl(2, "/user/events", {
+      from,
+      to,
+      limit: 100,
+      sort: "ASC",
+      striptags: "false",
+      key: getTornApiKey()
+    }));
+    const events = normalizeEventsResponse(data)
+      .filter(event => event.timestamp >= Number(fromTimestamp || 0) && event.timestamp <= to);
+    const gainEvents = events
+      .map(event => ({ ...event, gains: parseBattleStatGainsFromText(event.text) }))
+      .filter(event => event.gains.length);
+    all.push(...gainEvents);
+
+    if (events.length < 100) break;
+    const nextFrom = Math.max(...events.map(event => event.timestamp)) + 1;
+    if (!Number.isFinite(nextFrom) || nextFrom <= from) break;
+    from = nextFrom;
+  }
+
+  return all.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+function normalizeEventsResponse(data) {
+  const raw = data?.events || data?.event || data?.data || [];
+  const entries = Array.isArray(raw)
+    ? raw
+    : Object.entries(raw).map(([key, value]) => ({ id: key, ...(value || {}) }));
+
+  return entries.map(item => {
+    const text = decodeHtmlEntities(stripTags(
+      item.event || item.text || item.message || item.description || item.title || ""
+    ));
+    return {
+      id: item.id,
+      timestamp: Number(item.timestamp || item.time || item.created || item.created_at || 0),
+      text
+    };
+  }).filter(event => event.timestamp && event.text);
+}
+
+function parseBattleStatGainsFromText(text) {
+  const clean = decodeHtmlEntities(stripTags(text)).replace(/\s+/g, " ").trim();
+  const gains = [];
+  const seen = new Set();
+  const statPattern = "(strength|defen[cs]e|speed|dexterity)";
+  const amountPattern = "([\\d,.]+)";
+  const patterns = [
+    new RegExp(`${statPattern}[^.]{0,80}?(?:increased|gained|gain|grew|raised)[^.]{0,40}?(?:by\\s*)?${amountPattern}`, "gi"),
+    new RegExp(`(?:increased|gained|gain|grew|raised)[^.]{0,40}?(?:your\\s*)?${statPattern}[^.]{0,40}?(?:by\\s*)?${amountPattern}`, "gi"),
+    new RegExp(`${amountPattern}\\s*(?:points?\\s*)?(?:of\\s*)?${statPattern}`, "gi")
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(clean)) !== null) {
+      const first = match[1];
+      const second = match[2];
+      const stat = normalizeBattleStatName(Number.isFinite(Number(first?.replaceAll(",", ""))) ? second : first);
+      const amount = parseStatGainAmount(Number.isFinite(Number(first?.replaceAll(",", ""))) ? first : second);
+      const key = `${stat}:${amount}`;
+      if (stat && amount > 0 && !seen.has(key)) {
+        seen.add(key);
+        gains.push({ stat, amount });
+      }
+    }
+  }
+
+  return gains;
+}
+
+function normalizeBattleStatName(value) {
+  const stat = String(value || "").toLowerCase();
+  if (stat.startsWith("str")) return "strength";
+  if (stat.startsWith("def")) return "defense";
+  if (stat.startsWith("spe")) return "speed";
+  if (stat.startsWith("dex")) return "dexterity";
+  return "";
+}
+
+function parseStatGainAmount(value) {
+  const text = String(value || "").replaceAll(",", "").trim();
+  const number = Number(text);
+  return Number.isFinite(number) ? Math.round(number) : 0;
+}
+
+function sumBattleStatGainEvents(events) {
+  return events.reduce((totals, event) => {
+    event.gains.forEach(gain => {
+      totals[gain.stat] = (totals[gain.stat] || 0) + gain.amount;
+    });
+    return totals;
+  }, { strength: 0, defense: 0, speed: 0, dexterity: 0 });
+}
+
+function stripTags(value) {
+  return String(value ?? "").replace(/<[^>]*>/g, " ");
 }
 
 function storeBattleStatsSnapshot(battle) {
@@ -888,14 +980,31 @@ function storeBattleStatsSnapshot(battle) {
       return;
     }
 
-    history.push(snapshot);
-    const cutoff = now - 370 * 86400;
-    const trimmed = history
-      .filter(item => Number(item.timestamp || 0) >= cutoff)
-      .slice(-1000);
-    localStorage.setItem(BATTLE_HISTORY_KEY, JSON.stringify(trimmed));
+    saveBattleStatsSnapshot(snapshot);
   } catch (err) {
   }
+}
+
+function saveBattleStatsSnapshot(snapshot) {
+  const history = getBattleStatsHistory();
+  const item = {
+    timestamp: Number(snapshot.timestamp || Math.floor(Date.now() / 1000)),
+    strength: Number(snapshot.strength || 0),
+    defense: Number(snapshot.defense || 0),
+    speed: Number(snapshot.speed || 0),
+    dexterity: Number(snapshot.dexterity || 0),
+    total: Number(snapshot.total || 0)
+  };
+  if (!item.total) item.total = item.strength + item.defense + item.speed + item.dexterity;
+
+  const withoutSameTime = history.filter(existing => Math.abs(Number(existing.timestamp || 0) - item.timestamp) > 60);
+  withoutSameTime.push(item);
+  const cutoff = Math.floor(Date.now() / 1000) - 370 * 86400;
+  const trimmed = withoutSameTime
+    .filter(existing => Number(existing.timestamp || 0) >= cutoff)
+    .sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
+    .slice(-1000);
+  localStorage.setItem(BATTLE_HISTORY_KEY, JSON.stringify(trimmed));
 }
 
 function getBattleStatsHistory() {
@@ -914,6 +1023,15 @@ function getBattleStatsSnapshotBefore(timestamp) {
   if (!Number.isFinite(target)) return null;
   const history = getBattleStatsHistory().filter(item => Number(item.timestamp) <= target);
   return history.length ? history[history.length - 1] : null;
+}
+
+function getBattleStatsSnapshotForPeriod(timestamp) {
+  const target = Number(timestamp);
+  if (!Number.isFinite(target)) return null;
+  const history = getBattleStatsHistory();
+  const before = history.filter(item => Number(item.timestamp) <= target);
+  if (before.length) return before[before.length - 1];
+  return history.length ? history[0] : null;
 }
 
 function renderDashboardSkills(data) {
