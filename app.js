@@ -8,7 +8,7 @@ const BSP_CACHE_DAYS = 5;
 const BUILD_VERSION = "2026-05-20-native-tools-9";
 const POLL_INTERVAL_MS = 60000;
 const TARGET_FEED_STAT_BASE = 42565126;
-const TARGET_BATCH_ATTEMPT_LIMIT = 10;
+const TARGET_BATCH_ATTEMPT_LIMIT = 30;
 const PLACEHOLDER_PFP = "https://i.gyazo.com/a5da16009ce26825695c7e165fb03aab.png";
 const MEMBER_STATUS_CACHE_KEY = "emu.memberStatusCache.v1";
 const MEMBER_STATUS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
@@ -1925,7 +1925,7 @@ async function ensureTargetPoolSize(minCount) {
   let attempts = 0;
   let stagnant = 0;
 
-  while (targetResultPool.length < minCount && attempts < TARGET_BATCH_ATTEMPT_LIMIT && stagnant < 4) {
+  while (targetResultPool.length < minCount && attempts < TARGET_BATCH_ATTEMPT_LIMIT && stagnant < 10) {
     const before = targetResultPool.length;
     appendUniqueTargets(await loadTargetFinderBatch());
     attempts++;
@@ -2020,7 +2020,7 @@ function filterTargetsByViewerFairFight(targets) {
   const [minFF, maxFF] = getViewerFairFightRange();
   const [minStats, maxStats] = getTargetStatsRange();
   const useFF = isTargetFFEnabled();
-  const useStats = isTargetStatsEnabled();
+  const useStats = isTargetStatsEnabled() && (minStats > 0 || maxStats > 0);
 
   return targets.filter(target => {
     const fairFight = Number(target.bsp?.fair_fight);
@@ -2100,8 +2100,10 @@ function getTargetSourceFairFightRange(batchIndex = 0) {
   }
 
   const width = Math.max(0.01, max - min);
-  const step = Math.max(0.01, width / 6);
-  const bandMax = Math.max(min + 0.01, max - step * batchIndex);
+  const slices = Math.max(12, TARGET_BATCH_ATTEMPT_LIMIT);
+  const step = Math.max(0.01, width / slices);
+  const cycle = Math.max(0, batchIndex % slices);
+  const bandMax = Math.max(min + 0.01, max - step * cycle);
   const bandMin = Math.max(min, bandMax - step);
   return { min: formatTargetSourceFf(bandMin), max: formatTargetSourceFf(bandMax) };
 }
@@ -2239,10 +2241,10 @@ function formatTargetLastAction(target) {
   const raw = target.last_action || target.lastAction;
 
   if (typeof raw === "object" && raw !== null) {
-    return raw.relative || raw.status || (raw.timestamp ? formatDateTime(raw.timestamp) : "-");
+    return raw.timestamp ? formatAgeFromUnix(raw.timestamp) : raw.relative || raw.status || "-";
   }
 
-  if (Number(raw) > 1000000000) return formatDateTime(raw);
+  if (Number(raw) > 1000000000) return formatAgeFromUnix(raw);
   return target.last_action_relative || target.lastActionRelative || raw || "-";
 }
 
@@ -3381,6 +3383,21 @@ function updateCountdowns() {
 function formatDateTime(unixSeconds) {
   if (!unixSeconds) return "-";
   return new Date(Number(unixSeconds) * 1000).toLocaleString();
+}
+
+function formatAgeFromUnix(unixSeconds) {
+  const timestamp = Number(unixSeconds);
+  if (!timestamp) return "-";
+
+  const seconds = Math.max(0, Math.floor(Date.now() / 1000 - timestamp));
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days >= 1) return `${days} day${days === 1 ? "" : "s"} ago`;
+  if (hours >= 1) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  if (minutes >= 1) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  return "just now";
 }
 
 function formatElapsed(milliseconds) {
